@@ -1,4 +1,20 @@
-# Source: https://ai.google.dev/api/generate/images
-# Last fetched: 2026-03-27T18:25:31.568507+00:00
+# Source: https://ai.google.dev/gemini-api/docs/image-generation
+# Last fetched: 2026-03-27T18:43:18.241096+00:00
 
-> Fetch failed: HTTPSConnectionPool(host='ai.google.dev', port=443): Max retries exceeded with url: /api/generate/images (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f8eaa182120>: Failed to resolve 'ai.google.dev' ([Errno -5] No address associated with hostname)"))
+# api-reference — Split Index
+
+This file was split to satisfy repository file-size policy (target <= 500 lines).
+
+## Parts
+- `nano-banana/api-reference-parts/part-01.md`
+- `nano-banana/api-reference-parts/part-02.md`
+- `nano-banana/api-reference-parts/part-03.md`
+- `nano-banana/api-reference-parts/part-04.md`
+- `nano-banana/api-reference-parts/part-05.md`
+- `nano-banana/api-reference-parts/part-06.md`
+- `nano-banana/api-reference-parts/part-07.md`
+- `nano-banana/api-reference-parts/part-08.md`
+- `nano-banana/api-reference-parts/part-09.md`
+- `nano-banana/api-reference-parts/part-10.md`
+- `nano-banana/api-reference-parts/part-11.md`
+- `nano-banana/api-reference-parts/part-12.md`

@@ -1,30 +1,6 @@
 # Source: generated
-# Last fetched: 2026-03-27T18:38:37.271521+00:00
+# Last fetched: 2026-03-27T18:45:30.652592+00:00
 
 The following URLs failed to fetch from this environment.
 
-- `docs/gemini/lyria/api-reference.md` ← https://ai.google.dev/api/generate/music (404 Client Error: Not Found for url: https://ai.google.dev/api/generate/music)
-- `docs/gemini/nano-banana/api-reference.md` ← https://ai.google.dev/api/generate/images (404 Client Error: Not Found for url: https://ai.google.dev/api/generate/images)
-- `docs/supabase/quickstart-nextjs.md` ← https://supabase.com/docs/guides/getting-started/quickstart/nextjs (404 Client Error: Not Found for url: https://supabase.com/docs/guides/getting-started/quickstart/nextjs)
-- `docs/supabase/db/migrations.md` ← https://supabase.com/docs/guides/database/migrations (404 Client Error: Not Found for url: https://supabase.com/docs/guides/database/migrations)
-- `docs/supabase/pgvector/overview.md` ← https://supabase.com/docs/guides/ai/vector-embeddings (404 Client Error: Not Found for url: https://supabase.com/docs/guides/ai/vector-embeddings)
-- `docs/supabase/pgvector/setup.md` ← https://supabase.com/docs/guides/ai/vector-embeddings#enable-the-extension (404 Client Error: Not Found for url: https://supabase.com/docs/guides/ai/vector-embeddings#enable-the-extension)
-- `docs/supabase/pgvector/hnsw.md` ← https://supabase.com/docs/guides/ai/vector-embeddings#hnsw-indexes (404 Client Error: Not Found for url: https://supabase.com/docs/guides/ai/vector-embeddings#hnsw-indexes)
-- `docs/supabase/pgvector/querying.md` ← https://supabase.com/docs/guides/ai/vector-embeddings#querying-embeddings (404 Client Error: Not Found for url: https://supabase.com/docs/guides/ai/vector-embeddings#querying-embeddings)
-- `docs/supabase/storage/buckets.md` ← https://supabase.com/docs/guides/storage/buckets (404 Client Error: Not Found for url: https://supabase.com/docs/guides/storage/buckets)
-- `docs/clerk/oauth/scopes.md` ← https://clerk.com/docs/authentication/social-connections/oauth-scope (404 Client Error: Not Found for url: https://clerk.com/docs/authentication/social-connections/oauth-scope)
-- `docs/tauri/overview.md` ← https://tauri.app/v2/guide/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/)
-- `docs/tauri/quickstart.md` ← https://tauri.app/v2/guide/create/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/create/)
-- `docs/tauri/config.md` ← https://tauri.app/v2/reference/config/ (404 Client Error: Not Found for url: https://tauri.app/v2/reference/config/)
-- `docs/tauri/nextjs.md` ← https://tauri.app/v2/guide/frontend/nextjs/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/frontend/nextjs/)
-- `docs/tauri/android/setup.md` ← https://tauri.app/v2/guide/prerequisites/android/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/prerequisites/android/)
-- `docs/tauri/android/build.md` ← https://tauri.app/v2/distribute/google-play/ (404 Client Error: Not Found for url: https://tauri.app/v2/distribute/google-play/)
-- `docs/tauri/android/signing.md` ← https://tauri.app/v2/guide/distribution/android-signing/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/distribution/android-signing/)
-- `docs/tauri/desktop/build.md` ← https://tauri.app/v2/guide/distribution/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/distribution/)
-- `docs/tauri/desktop/updater.md` ← https://tauri.app/v2/plugin/updater/ (404 Client Error: Not Found for url: https://tauri.app/v2/plugin/updater/)
-- `docs/tauri/desktop/signing.md` ← https://tauri.app/v2/guide/distribution/sign-macos/ (404 Client Error: Not Found for url: https://tauri.app/v2/guide/distribution/sign-macos/)
-- `docs/tauri/plugins/fs.md` ← https://tauri.app/v2/plugin/fs/ (404 Client Error: Not Found for url: https://tauri.app/v2/plugin/fs/)
-- `docs/tauri/plugins/media-session.md` ← https://github.com/tauri-apps/tauri-plugin-media-session (404 Client Error: Not Found for url: https://github.com/tauri-apps/tauri-plugin-media-session)
-- `docs/tauri/plugins/share.md` ← https://tauri.app/v2/plugin/share/ (404 Client Error: Not Found for url: https://tauri.app/v2/plugin/share/)
-- `docs/playwright/selectors.md` ← https://playwright.dev/docs/selectors (404 Client Error: Not Found for url: https://playwright.dev/docs/selectors)
-- `docs/toolchain/opencode/mcp.md` ← https://opencode.ai/docs/mcp/ (404 Client Error: Not Found for url: https://opencode.ai/docs/mcp/)
+- None
