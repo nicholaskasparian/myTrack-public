@@ -1,4 +1,11 @@
 # Source: https://ai.google.dev/gemini-api/docs/music-generation#prompting
-# Last fetched: 2026-03-27T18:25:31.568507+00:00
+# Last fetched: 2026-03-27T18:38:37.271521+00:00
 
-> Fetch failed: HTTPSConnectionPool(host='ai.google.dev', port=443): Max retries exceeded with url: /gemini-api/docs/music-generation (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f8eaa181ca0>: Failed to resolve 'ai.google.dev' ([Errno -5] No address associated with hostname)"))
+# prompting — Split Index
+
+This file was split to satisfy repository file-size policy (target <= 500 lines).
+
+## Parts
+- `lyria/prompting-parts/part-01.md`
+- `lyria/prompting-parts/part-02.md`
+- `lyria/prompting-parts/part-03.md`

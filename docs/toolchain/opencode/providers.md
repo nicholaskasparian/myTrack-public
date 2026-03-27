@@ -1,4 +1,14 @@
 # Source: https://opencode.ai/docs/providers/
-# Last fetched: 2026-03-27T18:25:31.568507+00:00
+# Last fetched: 2026-03-27T18:38:37.271521+00:00
 
-> Fetch failed: HTTPSConnectionPool(host='opencode.ai', port=443): Max retries exceeded with url: /docs/providers/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f8eaa183050>: Failed to resolve 'opencode.ai' ([Errno -5] No address associated with hostname)"))
+# providers — Split Index
+
+This file was split to satisfy repository file-size policy (target <= 500 lines).
+
+## Parts
+- `opencode/providers-parts/part-01.md`
+- `opencode/providers-parts/part-02.md`
+- `opencode/providers-parts/part-03.md`
+- `opencode/providers-parts/part-04.md`
+- `opencode/providers-parts/part-05.md`
+- `opencode/providers-parts/part-06.md`

@@ -1,4 +1,109 @@
 # Source: https://clerk.com/docs/authentication/social-connections/custom-provider
-# Last fetched: 2026-03-27T18:25:31.568507+00:00
+# Last fetched: 2026-03-27T18:38:37.271521+00:00
 
-> Fetch failed: HTTPSConnectionPool(host='clerk.com', port=443): Max retries exceeded with url: /docs/authentication/social-connections/custom-provider (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f8eaa1481d0>: Failed to resolve 'clerk.com' ([Errno -5] No address associated with hostname)"))
+# Add a custom OAuth provider as a social connection
+
+1. [Configuration](#configuration)
+2. [Attribute mapping](#attribute-mapping)
+   1. [Tips](#tips)
+3. [Handling edge cases](#handling-edge-cases)
+   1. [Example: Hono with Cloudflare Workers](#example-hono-with-cloudflare-workers)
+4. [References](#references)
+
+Copy as markdownCopy as markdownOpenOpen
+
+## Before you start
+
+* [A Clerk application is required.](/docs/getting-started/quickstart/setup-clerk)
+* [An OIDC identity provider is required.](https://openid.net/specs/openid-connect-core-1_0.html)
+
+Clerk allows you to configure custom OpenID Connect (OIDC) compatible authentication providers for your application. This guide walks you through the steps to set up a custom OAuth provider.
+
+## [Configuration](#configuration)
+
+1. In the Clerk Dashboard, navigate to the [**SSO connections**⁠](https://dashboard.clerk.com/~/user-authentication/sso-connections) page.
+2. Select **Add connection** and select **For all users**.
+3. Select the **Custom provider** tab.
+4. Fill in the following fields:
+
+   * **Name**: The provider name (visible to users)
+   * **Key**: A unique identifier for the provider (cannot be changed after creation)
+   * **Discovery Endpoint**: The OIDC discovery endpoint URL of your provider
+     + Alternatively, select **Manual configuration** to set up provider endpoints manually
+   * **Client ID**: Obtained from your provider
+   * **Client Secret**: Obtained from your provider
+5. Select **Add connection**. You will be redirected to the connection's configuration page.
+
+The provider is now configured but not yet enabled. On the connection's configuration page, find the **Authorized redirect URLs** to configure in your provider's settings.
+
+Enable the provider from the top of the details page when ready.
+
+## [Attribute mapping](#attribute-mapping)
+
+If your provider returns claims in a non-standard format:
+
+1. Go to the provider's details page.
+2. Under **Attribute mapping**, configure the mapping to match your provider's claim format.
+
+### [Tips](#tips)
+
+* For fields like **Email address verified**, set default values for missing claims.
+* If the provider returns a claim but you don't want to set it, leave the mapping field empty.
+* If you set a user info URL, it takes priority over the ID Token for claim retrieval.
+
+## [Handling edge cases](#handling-edge-cases)
+
+Sometimes [attribute mapping](#attribute-mapping) isn't enough to get a provider working. For example, the call to the **User info URL** might require additional credentials or API calls. In these instances you should implement a proxy between Clerk and the provider to handle these transformations. The proxy will then be set as the **User info URL**.
+
+The proxy receives the request from Clerk (which contains an `Authorization` header) and should return a JSON object which you can use for attribute mapping.
+
+### [Example: Hono with Cloudflare Workers](#example-hono-with-cloudflare-workers)
+
+1. Initialize a new [Hono + Cloudflare Workers⁠](https://hono.dev/docs/getting-started/cloudflare-workers) project
+2. Implement your proxy logic, e.g. making an additional API call. Here's a minimal example:
+
+   src/index.ts
+
+   ```
+   import { Hono } from 'hono'
+
+   const app = new Hono()
+
+   app.get('/', async (c) => {
+     const authorization = c.req.header('authorization')
+
+     const userRes = await fetch('https://api.com/user', {
+       headers: {
+         'Content-Type': 'application/json',
+         Authorization: authorization,
+         'api-key': 'some-api-key',
+       },
+     })
+
+     const user = await userRes.json()
+
+     return c.json({
+       uuid: user.uuid,
+       avatar_url: user.avatar,
+       name: user.name,
+       username: user.username,
+       slug: user.id.slug,
+     })
+   })
+
+   export default app
+   ```
+3. Deploy your proxy
+4. Set the URL of the deployed Cloudflare worker as the **User info URL**
+5. Map the returned claim format of the proxy to the respective attributes in the **Attribute mapping** section
+
+## [References](#references)
+
+* [OpenID Connect Specification⁠](https://openid.net/specs/openid-connect-core-1_0.html)
+* [OAuth 2.0 Framework⁠](https://oauth.net/2/)
+
+## Feedback
+
+Last updated on Mar 24, 2026
+
+[Edit on GitHub](https://github.com/clerk/clerk-docs/edit/main/docs/guides/configure/auth-strategies/social-connections/custom-provider.mdx)
