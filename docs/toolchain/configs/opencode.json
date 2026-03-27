@@ -1,0 +1,20 @@
+{
+  "plugin": ["opencode-antigravity-auth"],
+  "provider": {
+    "anthropic": {
+      "models": {
+        "claude-opus-4-6-thinking": {},
+        "claude-sonnet-4-6-thinking": {}
+      }
+    },
+    "google": {
+      "models": {
+        "gemini-3.1-pro-high": {},
+        "gemini-3.1-pro-low": {},
+        "gemini-3-flash": {}
+      }
+    }
+  },
+  "model": "anthropic/claude-opus-4-6-thinking",
+  "small_model": "google/gemini-3-flash"
+}
