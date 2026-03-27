@@ -1,3 +1,6 @@
+# Source: https://opencode.ai/docs/models
+# Last fetched: 2026-03-27T18:52:24.282Z
+
 # OpenCode Zen Free Models
 
 No API key required. No rate limit.
