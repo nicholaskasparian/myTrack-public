@@ -133,16 +133,35 @@ export async function POST(req: NextRequest) {
           contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
           config: { 
             responseMimeType: 'application/json',
+            responseJsonSchema: { type: 'object', properties: { lyrics: { type: 'string' }, lyria_prompt: { type: 'string' } }, required: ['lyrics', 'lyria_prompt'] },
             systemInstruction: SYSTEM_INSTRUCTION_PROMPT 
           }
         });
         
         const responseText = promptResponse.text?.trim() || "{}";
-        const { lyrics: proLyrics = "", lyria_prompt = "" } = JSON.parse(responseText);
+        let cleanText = responseText;
+        if (cleanText.startsWith('```json')) {
+          cleanText = cleanText.replace(/^```json\n/, '').replace(/\n```$/, '');
+        } else if (cleanText.startsWith('```')) {
+          cleanText = cleanText.replace(/^```\n/, '').replace(/\n```$/, '');
+        }
+
+        let parsedResponse: any = {};
+        try {
+          parsedResponse = JSON.parse(cleanText);
+        } catch (e) {
+          console.error('[QueueMusic] Failed to parse Gemini response', responseText);
+          throw new Error('Failed to generate prompt or lyrics format');
+        }
+        
+        const { lyrics: proLyrics = "", lyria_prompt = "" } = parsedResponse;
 
         if (!proLyrics || !lyria_prompt) {
           throw new Error('Failed to generate lyrics or prompt for queue track');
         }
+
+        // Strip LRC timing markers for Stage 3 generation
+        const plainLyrics = proLyrics.replace(/\[\d{2}:\d{2}\.\d{2}\]/g, '').trim();
 
         // b. Music & Cover in Parallel
         const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
@@ -150,8 +169,16 @@ export async function POST(req: NextRequest) {
         const [musicResponse, coverResponse] = await Promise.all([
           ai.models.generateContent({
             model: MODELS.LYRIA,
-            contents: `Prompt: ${lyria_prompt}\nLyrics: ${proLyrics}\n\nCreate a song about 2 minutes long. Ensure you return the raw lyrics in the TEXT response modality.`,
-            config: { responseModalities: ["AUDIO", "TEXT"] }
+            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics:\n${plainLyrics}`,
+            config: { 
+              responseModalities: ["AUDIO", "TEXT"],
+              safetySettings: [
+                { category: 'HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                { category: 'SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                { category: 'HARASSMENT', threshold: 'BLOCK_NONE' },
+                { category: 'DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+              ]
+            }
           }),
           ai.models.generateContent({
             model: MODELS.NANO_BANANA,
@@ -162,18 +189,30 @@ export async function POST(req: NextRequest) {
         // Extract Music
         let audioBuffer: Buffer | null = null;
         let lyriaLyrics = '';
+
+        if (musicResponse.promptFeedback?.blockReason) {
+          console.warn(`[QueueMusic] Prompt blocked for ${concept.title}: ${musicResponse.promptFeedback.blockReason}`);
+          throw new Error(`Prompt blocked: ${musicResponse.promptFeedback.blockReason}`);
+        }
+
         const mCandidate = musicResponse.candidates?.[0];
-        if (mCandidate?.content?.parts) {
+        
+        if (mCandidate && mCandidate.content && mCandidate.content.parts) {
           for (const part of mCandidate.content.parts) {
             if (part.text) lyriaLyrics += part.text + '\n';
-            if (part.inlineData && part.inlineData.mimeType?.startsWith('audio/') && part.inlineData.data) {
-              audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+            if (part.inlineData && part.inlineData.data) {
+              const mime = part.inlineData.mimeType || '';
+              if (mime.startsWith('audio/') || !mime) {
+                audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+              }
             }
           }
         }
 
         if (!audioBuffer) {
-          throw new Error('No audio generated for queue track');
+          const reason = mCandidate?.finishReason || 'Unknown';
+          const text = mCandidate?.content?.parts?.find(p => p.text)?.text || '';
+          throw new Error(`No audio generated for queue track (Reason: ${reason}). Text: ${text.substring(0, 50)}`);
         }
 
         // Extract Cover
