@@ -6,19 +6,21 @@ import RatingSlider from './RatingSlider';
 import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
+const LRC_INLINE_PREFIX_TAG = '[:]';
 
 function parseLRC(lrcText: string) {
+  const normalizedText = lrcText
+    .replace(/\r\n?/g, '\n')
+    .replace(/\\n/g, '\n');
+
   // 1. Add newlines before AND after any timestamp tag
-  let text = lrcText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
+  let text = normalizedText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
   
   // 2. Add newlines before AND after Lyria timestamp tags [15.0:]
   text = text.replace(/(\[\d+(?:\.\d+)?:\])/g, '\n$1\n');
   
   // 3. Add newlines before AND after structural tags
   text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
-
-  // 4. Split sentences into separate lines if the AI clumped them together in a paragraph
-  text = text.replace(/([.?!])\s+(?=[A-Z])/g, '$1\n');
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
@@ -82,7 +84,13 @@ function parseLRC(lrcText: string) {
 
   if (parsed.length === 0) {
     // Fallback if no tags at all
-    return lrcText.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => ({ time: 0, text: l }));
+    return normalizedText
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+      .map((line) => (line.startsWith(LRC_INLINE_PREFIX_TAG) ? line.substring(LRC_INLINE_PREFIX_TAG.length).trim() : line))
+      .filter((line) => !shouldSkipLyricLine(line))
+      .map((line) => ({ time: 0, text: line }));
   }
 
   // Group lines with same timestamp to avoid overlapping
@@ -104,13 +112,25 @@ export default function FullscreenPlayer({
   onClose,
   onNext,
   onPrev,
-  onAddToPlaylist
+  onAddToPlaylist,
+  moodHint,
+  onMoodHintChange,
+  onUpdateVibe,
+  isUpdatingVibe,
+  vibeFeedback,
+  isWaitingForQueueStart
 }: {
   song: Song | null;
   onClose?: () => void;
   onNext?: () => void;
   onPrev?: () => void;
   onAddToPlaylist?: (songId: string) => void;
+  moodHint?: string;
+  onMoodHintChange?: (nextMoodHint: string) => void;
+  onUpdateVibe?: () => void;
+  isUpdatingVibe?: boolean;
+  vibeFeedback?: string | null;
+  isWaitingForQueueStart?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -214,10 +234,8 @@ export default function FullscreenPlayer({
     };
   }, [parsedLyrics, onNext, song]);
 
-  if (!song) return null;
-
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !song) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -290,7 +308,7 @@ export default function FullscreenPlayer({
     }}>
       
       {/* Background with Glassmorphism */}
-      {song.cover_url && (
+      {song?.cover_url && (
         <div style={{
           position: 'absolute',
           top: '-10%',
@@ -373,28 +391,28 @@ export default function FullscreenPlayer({
             border: '1px solid rgba(255,255,255,0.18)',
             background: 'var(--ink)'
           }}>
-            {song.cover_url ? (
+            {song?.cover_url ? (
               <img src={song.cover_url} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)' }}>
-                No Cover Art
+                {isWaitingForQueueStart ? 'Generating next track...' : 'No Cover Art'}
               </div>
             )}
           </div>
           
           <div>
-            <h2 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>{song.title}</h2>
+            <h2 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>{song?.title || (isWaitingForQueueStart ? 'Preparing your next track...' : 'No active track')}</h2>
             <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)' }}>
-              {song.genre || 'Unknown Artist'} • {song.bpm ? `${song.bpm} BPM` : 'Unknown BPM'}
+              {song?.genre || 'Generated session'} • {song?.bpm ? `${song.bpm} BPM` : (isWaitingForQueueStart ? 'Queue building' : 'Unknown BPM')}
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(0,0,0,0.5)', padding: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
              <div style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>Rate (0-10)</div>
              <RatingSlider value={rating} onChange={handleRate} />
-          </div>
+           </div>
 
-          {onAddToPlaylist && (
+          {onAddToPlaylist && song && (
             <button
               onClick={() => onAddToPlaylist(song.id)}
               style={{
@@ -416,9 +434,47 @@ export default function FullscreenPlayer({
             </button>
           )}
 
+          {onMoodHintChange && onUpdateVibe && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(0,0,0,0.5)', padding: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>Guide session</div>
+              <input
+                value={moodHint || ''}
+                onChange={(e) => onMoodHintChange(e.target.value)}
+                placeholder="e.g. warm analog house, rain-soaked synth pop"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  padding: '10px 12px',
+                  outline: 'none',
+                  borderRadius: 0
+                }}
+              />
+              <button
+                onClick={onUpdateVibe}
+                disabled={isUpdatingVibe}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: isUpdatingVibe ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  cursor: isUpdatingVibe ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isUpdatingVibe ? 'Updating...' : 'Update vibe'}
+              </button>
+              {vibeFeedback && <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)' }}>{vibeFeedback}</div>}
+            </div>
+          )}
+
           {/* Player controls */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: 'auto' }}>
-            <audio ref={audioRef} src={song.audio_url || ''} />
+            <audio ref={audioRef} src={song?.audio_url || ''} />
             
             {/* Scrubber */}
             <div 
@@ -469,6 +525,7 @@ export default function FullscreenPlayer({
               
               <button 
                 onClick={togglePlay}
+                disabled={!song}
                 style={{
                   width: '64px',
                   height: '64px',
@@ -481,14 +538,17 @@ export default function FullscreenPlayer({
                   fontSize: '24px',
                   fontWeight: 'bold',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: song ? 'pointer' : 'not-allowed',
+                  opacity: song ? 1 : 0.5,
                   transition: 'background 0.2s ease, transform 0.2s ease'
                 }}
                 onMouseOver={(e) => {
+                  if (!song) return;
                   e.currentTarget.style.background = 'rgba(255,255,255,0.8)';
                   e.currentTarget.style.transform = 'scale(1.05)';
                 }}
                 onMouseOut={(e) => {
+                  if (!song) return;
                   e.currentTarget.style.background = 'white';
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
@@ -524,7 +584,7 @@ export default function FullscreenPlayer({
         }} ref={scrollRef}>
           {parsedLyrics.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '32px', fontWeight: 'bold' }}>
-              No lyrics available for this track.
+              {isWaitingForQueueStart ? 'Generating the next track...' : 'No lyrics available for this track.'}
             </div>
           ) : (
             parsedLyrics.map((line, idx) => {

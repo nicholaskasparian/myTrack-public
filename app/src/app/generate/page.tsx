@@ -4,9 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Song, GenerationStep } from '../../lib/types'
-import AudioPlayer from '../../components/AudioPlayer'
 import FullscreenPlayer from '../../components/FullscreenPlayer'
-import RatingSlider from '../../components/RatingSlider'
 
 const LOADING_PULSE_DURATION_MS = 420
 
@@ -20,18 +18,16 @@ export default function GeneratePage() {
   const [currentStepText, setCurrentStepText] = useState('')
 
   const [song, setSong] = useState<Song | null>(null)
-  const [showRating, setShowRating] = useState(false)
-  const [rating, setRating] = useState(5)
   const [queue, setQueue] = useState<Song[]>([])
   const [isQueueGenerating, setIsQueueGenerating] = useState(false)
   const [isWaitingForQueueStart, setIsWaitingForQueueStart] = useState(false)
-  const [showLyricsPlayer, setShowLyricsPlayer] = useState(false)
+  const [isUpdatingVibe, setIsUpdatingVibe] = useState(false)
+  const [vibeFeedback, setVibeFeedback] = useState<string | null>(null)
   const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null)
   const [playlists, setPlaylists] = useState<any[]>([])
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false)
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
-  const [hasEnded, setHasEnded] = useState(false)
   const [inputError, setInputError] = useState<string | null>(null)
   const [loadingPulse, setLoadingPulse] = useState(0)
 
@@ -78,9 +74,6 @@ export default function GeneratePage() {
 
   const promoteQueuedSong = (nextSong: Song) => {
     setSong(nextSong)
-    setShowRating(false)
-    setHasEnded(false)
-    setShowLyricsPlayer(true)
     setIsWaitingForQueueStart(false)
   }
 
@@ -165,9 +158,6 @@ export default function GeneratePage() {
       setQueue(queue.slice(1))
     } else {
       setSong(null)
-      setShowLyricsPlayer(false)
-      setShowRating(false)
-      setHasEnded(false)
       const started = await tryStartBackgroundGeneration()
       if (started) setIsWaitingForQueueStart(true)
     }
@@ -193,7 +183,6 @@ export default function GeneratePage() {
       const data = await response.json()
       setStep('done')
       setSong(data.song)
-      setShowLyricsPlayer(true)
       tryStartBackgroundGeneration()
     } catch (error: any) {
       console.error('Error generating:', error)
@@ -202,25 +191,22 @@ export default function GeneratePage() {
     }
   }
 
-  const handleTimeUpdate = (currentTime: number) => {
-    if (currentTime >= 20 && !showRating) setShowRating(true)
-  }
-
-  const submitRating = async () => {
-    if (song) {
-      await fetch(`/api/songs/${song.id}/rate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating }),
-      }).catch(console.error)
+  const handleUpdateVibe = async () => {
+    if (!moodHint.trim()) {
+      setVibeFeedback('Enter a vibe before updating.')
+      return
     }
-    setShowRating(false)
-    if (hasEnded) handleNextTrack()
-  }
-
-  const skipRating = () => {
-    setShowRating(false)
-    if (hasEnded) handleNextTrack()
+    setIsUpdatingVibe(true)
+    try {
+      const started = await tryStartBackgroundGeneration()
+      setVibeFeedback(
+        started
+          ? 'Vibe updated. Next generated tracks will follow this direction.'
+          : 'Vibe saved. Queue generation is already active.'
+      )
+    } finally {
+      setIsUpdatingVibe(false)
+    }
   }
 
   return (
@@ -321,81 +307,20 @@ export default function GeneratePage() {
         </section>
       )}
 
-      {step === 'done' && song && (
+      {step === 'done' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <section className="panel" style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 220px) 1fr', gap: '1rem', alignItems: 'start' }}>
-            <div
-              style={{
-                width: '100%',
-                aspectRatio: '1',
-                borderRadius: '14px',
-                background: 'var(--bg-deep)',
-                overflow: 'hidden',
-                border: '1px solid var(--border)',
-              }}
-            >
-              {song.cover_url ? <img src={song.cover_url} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div />}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-              <h2 className="section-title" style={{ marginBottom: 0 }}>{song.title}</h2>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span className="tag">{song.genre}</span>
-                <span className="tag">{song.bpm} BPM</span>
-              </div>
-
-              {!showLyricsPlayer && (
-                <AudioPlayer
-                  key={song.id}
-                  src={song.audio_url || ''}
-                  onTimeUpdate={handleTimeUpdate}
-                  onEnded={() => {
-                    setShowRating(true)
-                    setHasEnded(true)
-                  }}
-                />
-              )}
-
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={() => setShowLyricsPlayer(true)} className="btn btn-primary">Open full player + lyrics</button>
-                <button onClick={() => openPlaylistModal(song.id)} className="btn btn-secondary">+ Playlist</button>
-              </div>
-            </div>
-
-            {showLyricsPlayer && (
-              <FullscreenPlayer
-                key={song.id}
-                song={song}
-                onClose={() => setShowLyricsPlayer(false)}
-                onNext={() => {
-                  setShowRating(true)
-                  setHasEnded(true)
-                  handleNextTrack()
-                }}
-                onAddToPlaylist={(songId) => openPlaylistModal(songId)}
-              />
-            )}
-          </section>
-
-          <section className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-            <h3 className="section-title" style={{ marginBottom: 0 }}>Influence the feed</h3>
-            <p style={{ color: 'var(--ink-muted)', fontSize: '0.9rem' }}>Guide the next queued songs with a fresh vibe prompt.</p>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input className="input" type="text" value={moodHint} onChange={(e) => setMoodHint(e.target.value)} placeholder="e.g. warm analog house, rain-soaked synth pop" />
-              <button onClick={() => alert('Vibe updated! This will influence upcoming tracks.')} className="btn btn-primary">Update vibe</button>
-            </div>
-          </section>
-
-          {showRating && (
-            <section className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-              <h3 className="section-title" style={{ marginBottom: 0 }}>How does this track fit your vibe?</h3>
-              <RatingSlider value={rating} onChange={setRating} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button onClick={skipRating} className="btn btn-ghost">Skip</button>
-                <button onClick={submitRating} className="btn btn-primary">Submit</button>
-              </div>
-            </section>
-          )}
+          <FullscreenPlayer
+            key={song?.id || (isWaitingForQueueStart ? 'waiting' : 'idle')}
+            song={song}
+            onNext={handleNextTrack}
+            onAddToPlaylist={(songId) => openPlaylistModal(songId)}
+            moodHint={moodHint}
+            onMoodHintChange={setMoodHint}
+            onUpdateVibe={handleUpdateVibe}
+            isUpdatingVibe={isUpdatingVibe}
+            vibeFeedback={vibeFeedback}
+            isWaitingForQueueStart={isWaitingForQueueStart}
+          />
 
           <section className="panel">
             <h3 className="section-title">Up next</h3>
@@ -415,9 +340,7 @@ export default function GeneratePage() {
                       if (song) fetch(`/api/songs/${song.id}/play`, { method: 'POST' }).catch(console.error)
                       setSong(qSong)
                       setQueue((prev) => prev.filter((s) => s.id !== qSong.id))
-                      setShowRating(false)
-                      setHasEnded(false)
-                      setShowLyricsPlayer(true)
+                      setIsWaitingForQueueStart(false)
                     }}
                     className="btn btn-secondary"
                   >
