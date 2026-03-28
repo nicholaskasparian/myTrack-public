@@ -35,10 +35,11 @@ export function parseTimedLyrics(raw: string): LyricLine[] {
     .map((l) => l.trim())
     .filter(Boolean);
 
-  // [mm:ss] or [mm:ss.ms], optionally followed by inline lyric text
-  const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\](.*)$/;
-  // Lyria-style [15.0:] timestamps
-  const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):\](.*)$/;
+  // [mm:ss] or [mm:ss.ms] or [m:ss] or [m:ss.ms], optionally followed by inline lyric text
+  // Updated regex to support timestamps with or without trailing colon
+  const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?):?\](.*)$/;
+  // Lyria-style [15.0:] timestamps, also supporting optional trailing colon
+  const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):?\](.*)$/;
   const tokens: LyricToken[] = [];
 
   for (const line of lines) {
