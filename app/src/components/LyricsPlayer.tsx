@@ -5,10 +5,12 @@ import type { Song } from '../lib/types';
 
 export default function LyricsPlayer({
   song,
-  onClose
+  onClose,
+  onNext
 }: {
   song: Song;
   onClose?: () => void;
+  onNext?: () => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -46,24 +48,31 @@ export default function LyricsPlayer({
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       audio.play().catch(e => console.log('Auto-play prevented:', e));
-      setIsPlaying(true);
     };
     
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
+      if (onNext) onNext();
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [duration, lines.length]);
+  }, [duration, lines.length, onNext]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -72,7 +81,6 @@ export default function LyricsPlayer({
     } else {
       audioRef.current.play();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -80,6 +88,13 @@ export default function LyricsPlayer({
     const rect = trackRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = (clickX / rect.width) * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleLyricClick = (idx: number) => {
+    if (!audioRef.current || duration === 0 || lines.length === 0) return;
+    const newTime = (idx / lines.length) * duration;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -316,14 +331,22 @@ export default function LyricsPlayer({
               return (
                 <div 
                   key={idx} 
+                  onClick={() => handleLyricClick(idx)}
                   style={{ 
                     fontSize: '48px', 
                     fontWeight: 'bold', 
                     lineHeight: '1.2',
+                    cursor: 'pointer',
                     transition: 'color 0.3s ease, transform 0.3s ease',
                     color: isActive ? 'white' : (isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'),
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',
                     transformOrigin: 'left center'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isActive) e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isActive) e.currentTarget.style.color = isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)';
                   }}
                 >
                   {line}

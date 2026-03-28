@@ -29,6 +29,33 @@ export default function GeneratePage() {
   const [queue, setQueue] = useState<Song[]>([]);
   const [showLyricsPlayer, setShowLyricsPlayer] = useState(false);
 
+  // Auto-advance logic
+  const handleNextTrack = () => {
+    if (queue.length > 0) {
+      const nextSong = queue[0];
+      setQueue(queue.slice(1));
+      
+      // Update current song with next song's details but keep mock audio/cover for demo if missing
+      setSong(prev => prev ? {
+        ...prev,
+        ...nextSong,
+        audio_url: nextSong.audio_url || prev.audio_url,
+        cover_url: nextSong.cover_url || prev.cover_url
+      } : nextSong);
+      
+      setShowRating(false);
+      triggerBackgroundGeneration();
+    }
+  };
+
+  const triggerBackgroundGeneration = () => {
+    fetch('/api/generate/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mixType: moodHint ? 'Custom Vibe' : 'Default Mix', vibePrompt: moodHint })
+    }).catch(console.error);
+  };
+
   // Generate functions
   const handleDefaultMix = () => {
     setStep('prompting');
@@ -51,6 +78,9 @@ export default function GeneratePage() {
   };
 
   const runGenerationSequence = () => {
+    // Fire off the background generation for the next song in the queue immediately
+    triggerBackgroundGeneration();
+
     // Simulate generation sequence
     setTimeout(() => {
       setStep('lyria');
@@ -137,7 +167,7 @@ export default function GeneratePage() {
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', fontFamily: 'var(--font-ibm-plex-sans)' }}>
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>CREATE</h1>
+        <h1 style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>RADIO SESSION</h1>
         <button 
           onClick={() => router.push('/dashboard')} 
           style={{ 
@@ -192,9 +222,9 @@ export default function GeneratePage() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            Play Default Mix
+            Join Feed
             <div style={{ fontSize: '14px', fontWeight: 'normal', color: 'rgba(255,255,255,0.7)', marginTop: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
-              We'll auto-generate a track perfectly tailored to your Sound Profile
+              We'll auto-generate an endless stream tailored to your Sound Profile
             </div>
           </button>
           
@@ -241,7 +271,7 @@ export default function GeneratePage() {
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                Create
+                Enter Session
               </button>
             </div>
           </div>
@@ -342,7 +372,10 @@ export default function GeneratePage() {
             <AudioPlayer 
               src={song.audio_url || ''} 
               onTimeUpdate={handleTimeUpdate}
-              onEnded={() => setShowRating(true)}
+              onEnded={() => {
+                setShowRating(true);
+                handleNextTrack();
+              }}
             />
 
             <div style={{ display: 'flex', gap: '16px', width: '100%', justifyContent: 'center' }}>
@@ -356,8 +389,56 @@ export default function GeneratePage() {
             </div>
 
             {showLyricsPlayer && song && (
-              <LyricsPlayer song={song} onClose={() => setShowLyricsPlayer(false)} />
+              <LyricsPlayer song={song} onClose={() => setShowLyricsPlayer(false)} onNext={() => {
+                setShowRating(true);
+                handleNextTrack();
+              }} />
             )}
+          </div>
+
+          {/* Persistent Guidance Input */}
+          <div style={{
+            border: '1px solid var(--border)',
+            padding: '24px',
+            background: 'var(--card-bg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>Influence the Feed</h3>
+            <p style={{ fontSize: '14px', color: 'var(--ink-muted)' }}>Enter a vibe to guide the next songs in your session.</p>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <input 
+                type="text" 
+                value={moodHint}
+                onChange={(e) => setMoodHint(e.target.value)}
+                placeholder="e.g. late night drive, high energy..."
+                style={{ 
+                  flex: 1, 
+                  padding: '12px 16px', 
+                  border: '1px solid var(--border)', 
+                  outline: 'none',
+                  fontSize: '16px',
+                  background: 'var(--bg)'
+                }}
+              />
+              <button 
+                onClick={() => {
+                  alert('Vibe updated! This will influence upcoming tracks.');
+                }}
+                style={{ 
+                  background: 'var(--ink)', 
+                  color: 'var(--bg)', 
+                  border: 'none', 
+                  padding: '0 24px', 
+                  cursor: 'pointer', 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase'
+                }}
+              >
+                Update Vibe
+              </button>
+            </div>
           </div>
 
           {/* Rating Section */}
