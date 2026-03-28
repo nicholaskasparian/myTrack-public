@@ -7,10 +7,10 @@ export default async function LandingPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg)', color: 'var(--ink)' }}>
       {/* Top Nav */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 2rem' }}>
-        <div style={{ fontWeight: 'bold', fontSize: '1.25rem', letterSpacing: '-0.02em' }}>myTrack</div>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '1px' }}>myTrack</div>
         {!userId && (
-          <Link href="/sign-in" style={{ textDecoration: 'none', color: 'var(--ink)', fontWeight: 500 }}>
+          <Link href="/sign-in" style={{ textDecoration: 'none', color: 'var(--ink)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '14px' }}>
             [Sign In]
           </Link>
         )}

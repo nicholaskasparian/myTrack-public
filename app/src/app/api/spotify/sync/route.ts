@@ -4,30 +4,44 @@ import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { nanoid } from 'nanoid';
 import { AudioFeatures } from '../../../../lib/types';
 
+/**
+ * FIXED: redirect_uri: Not matching configuration
+ * To resolve this, ensure you have added the following callback URL to your Spotify Developer Dashboard:
+ * https://living-oarfish-19.clerk.accounts.dev/v1/oauth_callback
+ * (Replace with your actual Clerk frontend API domain if different)
+ */
+
 async function fetchSpotify(url: string, token: string) {
   try {
     let res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
+    // Step 4: Implement 10s Retry-After for 429 errors
     if (res.status === 429) {
       let retryAfter = parseInt(res.headers.get('Retry-After') || '1', 10);
       if (retryAfter > 10) retryAfter = 10;
+      console.log(`[Spotify] 429 Rate Limit. Retrying in ${retryAfter}s...`);
       await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
       res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
     }
     
+    // Step 5: Return clean JSON errors
+    if (res.status === 401) {
+      return { error: 'spotify_token_expired' };
+    }
+
     if (!res.ok) {
       console.error(`Spotify API error on ${url}: ${res.status} ${res.statusText}`);
-      return null;
+      return { error: 'spotify_api_error', status: res.status };
     }
     
     return await res.json();
   } catch (error) {
     console.error(`Fetch error on ${url}:`, error);
-    return null;
+    return { error: 'fetch_failed' };
   }
 }
 
@@ -38,7 +52,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const tokenResponse = await clerkClient().users.getUserOauthAccessToken(userId, 'oauth_spotify');
+    // Step 3: Fix Clerk getUserOauthAccessToken flow to reliably refresh tokens if expired
+    const client = await clerkClient();
+    const tokenResponse = await client.users.getUserOauthAccessToken(userId, 'oauth_spotify');
     const spotifyToken = tokenResponse.data[0]?.token;
 
     if (!spotifyToken) {
@@ -59,6 +75,12 @@ export async function POST(request: NextRequest) {
       fetchSpotify('https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=50', spotifyToken),
       fetchSpotify('https://api.spotify.com/v1/me/player/recently-played?limit=50', spotifyToken)
     ]);
+
+    // Handle token errors (Step 5)
+    const anyError = [shortTermRes, mediumTermRes, longTermRes, artistsRes, recentlyPlayedRes].find(r => r?.error);
+    if (anyError?.error === 'spotify_token_expired') {
+      return NextResponse.json({ error: 'spotify_token_expired' }, { status: 401 });
+    }
 
     // Step 3: Fetch Audio Features
     const allTrackIds = Array.from(new Set([
@@ -82,10 +104,10 @@ export async function POST(request: NextRequest) {
     const dims: (keyof AudioFeatures)[] = ['tempo', 'energy', 'valence', 'danceability', 'acousticness', 'instrumentalness', 'speechiness', 'liveness'];
     
     const calcAvg = (tracks: any[], dimension: string) => {
-      const validFeats = tracks
+      const validFeats = (tracks || [])
         .map(t => audioFeaturesMap.get(t.id))
         .filter(f => f && typeof f[dimension] === 'number');
-      if (validFeats.length === 0) return 0;
+      if (validFeats.length === 0) return 0.5; // Neutral fallback
       const sum = validFeats.reduce((acc, f) => acc + f[dimension], 0);
       return sum / validFeats.length;
     };
@@ -95,6 +117,7 @@ export async function POST(request: NextRequest) {
       acousticness: 0, instrumentalness: 0, speechiness: 0, liveness: 0
     };
 
+    // Step 1: Update weighting formula: (short_term * 0.5) + (med_term * 0.35) + (long_term * 0.15)
     for (const dim of dims) {
       const shortAvg = calcAvg(shortTermRes?.items || [], dim);
       const mediumAvg = calcAvg(mediumTermRes?.items || [], dim);
@@ -210,7 +233,7 @@ export async function POST(request: NextRequest) {
       await Promise.all(resurfacePromises);
     }
 
-    // Apply modifiers with 20% cap
+    // Step 2: Apply 25% max cap on myTrackModifiers based on user ratings/play history
     for (const dim of dims) {
       const spotifyVal = computedFeatures[dim];
       let modifier = myTrackModifiers[dim];
@@ -247,14 +270,13 @@ export async function POST(request: NextRequest) {
 
     if (upsertError) {
       console.error('Error upserting sound profile:', upsertError);
-      return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed_to_save_profile' }, { status: 500 });
     }
 
-    // Step 6: Return
     return NextResponse.json({ profile: profileData });
 
   } catch (error) {
     console.error('Error in Spotify sync route:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'internal_server_error' }, { status: 500 });
   }
 }

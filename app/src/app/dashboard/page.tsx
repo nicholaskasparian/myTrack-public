@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
 import type { SoundProfile, Song } from '../../lib/types';
 import SongCard from '../../components/SongCard';
+import LyricsPlayer from '../../components/LyricsPlayer';
 
 const AudioFeatureBar = ({ label, value }: { label: string; value: number }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', marginBottom: '8px' }}>
@@ -33,13 +34,20 @@ export default function DashboardPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
 
   const fetchProfile = async () => {
     try {
       const res = await fetch('/api/spotify/sync', { method: 'POST' });
+      
+      // If user hasn't successfully connected OAuth, API throws 400/401; leave profile as null.
+      if (res.status === 400 || res.status === 401) {
+        return;
+      }
+
       if (!res.ok) throw new Error('Failed to fetch profile');
       const data = await res.json();
-      setProfile(data);
+      setProfile(data.profile || data);
     } catch (err: any) {
       console.error(err);
       setError(err.message);
@@ -74,27 +82,40 @@ export default function DashboardPage() {
         justifyContent: 'space-between', 
         alignItems: 'center', 
         marginBottom: '48px', 
-        paddingBottom: '16px', 
+        paddingBottom: '24px', 
         borderBottom: '1px solid var(--border)' 
       }}>
-        <div style={{ fontWeight: 'bold', fontSize: '24px' }}>myTrack</div>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-          <a href="/library" style={{ color: 'var(--ink)', textDecoration: 'none', fontWeight: 'bold' }}>Library</a>
-          <a href="/playlists" style={{ color: 'var(--ink)', textDecoration: 'none', fontWeight: 'bold' }}>Playlists</a>
+        <div style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '1px' }}>myTrack</div>
+        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+          <a href="/library" style={{ color: 'var(--ink)', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Library</a>
+          <a href="/playlists" style={{ color: 'var(--ink)', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Playlists</a>
           <button 
             onClick={fetchProfile}
             style={{ 
-              background: 'none', 
-              border: '1px solid var(--border)', 
-              padding: '8px 16px', 
+              background: 'transparent', 
+              border: '1px solid var(--ink)', 
+              padding: '6px 16px', 
               cursor: 'pointer',
               fontWeight: 'bold',
-              color: 'var(--ink)'
+              color: 'var(--ink)',
+              fontSize: '14px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              transition: 'all 0.2s ease',
+              borderRadius: '0' // ZERO rounded corners
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'var(--ink)';
+              e.currentTarget.style.color = 'var(--bg)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--ink)';
             }}
           >
             Sync
           </button>
-          <UserButton />
+          <UserButton appearance={{ elements: { avatarBox: { borderRadius: '0' } } }} />
         </div>
       </nav>
 
@@ -262,7 +283,15 @@ export default function DashboardPage() {
               
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {songs.map((song) => (
-                  <SongCard key={song.id} song={song} compact />
+                  <div 
+                    key={song.id} 
+                    onClick={() => setSelectedSong(song)}
+                    style={{ cursor: 'pointer', transition: 'background 0.2s ease' }}
+                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.03)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <SongCard song={song} compact />
+                  </div>
                 ))}
                 {songs.length === 0 && (
                   <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--ink-muted)' }}>
@@ -275,6 +304,13 @@ export default function DashboardPage() {
           </div>
           
         </div>
+      )}
+
+      {selectedSong && (
+        <LyricsPlayer 
+          song={selectedSong} 
+          onClose={() => setSelectedSong(null)} 
+        />
       )}
     </div>
   );

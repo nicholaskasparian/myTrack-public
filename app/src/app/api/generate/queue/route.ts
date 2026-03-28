@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const body = await req.json().catch(() => ({}));
+    const mixType = body.mixType || 'Default Mix'; // 'Default Mix' or 'Custom Vibe'
+    const vibePrompt = body.vibePrompt || '';
+
     const supabase = getSupabaseAdmin();
 
     // 1. Fetch user's Sound Profile
@@ -57,7 +61,10 @@ export async function POST(req: NextRequest) {
     const sound_profile = profileData as SoundProfile;
 
     // 2. Generate 9 concepts via Flash
-    const userPromptIdeas = `Sound Profile: ${JSON.stringify(sound_profile)}`;
+    let userPromptIdeas = `Sound Profile: ${JSON.stringify(sound_profile)}`;
+    if (mixType === 'Custom Vibe' && vibePrompt) {
+        userPromptIdeas += `\n\nGenerate concepts tailored to this specific vibe/mood hint: "${vibePrompt}". Still keep the user's general sound profile in mind, but heavily lean into the requested vibe.`;
+    }
     
     const ideasResponse = await ai.models.generateContent({
       model: MODELS.FLASH,
@@ -92,19 +99,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Check for resurface=true
-    const { data: resurfaceData } = await supabase
-      .from('songs')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('resurface', true)
-      .not('rating', 'is', null)
-      .order('rating', { ascending: false })
-      .limit(1);
+    if (mixType === 'Default Mix') {
+      const { data: resurfaceData } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('resurface', true)
+        .gte('rating', 8) // Ensure rating is >= 8 for resurfacing
+        .order('rating', { ascending: false })
+        .limit(1);
 
-    if (resurfaceData && resurfaceData.length > 0) {
-      const resurfaceSong = resurfaceData[0] as Song;
-      if (resurfaceSong.concept_json) {
-        selectedConcepts[0] = resurfaceSong.concept_json;
+      if (resurfaceData && resurfaceData.length > 0) {
+        const resurfaceSong = resurfaceData[0] as Song;
+        if (resurfaceSong.concept_json) {
+          selectedConcepts[0] = resurfaceSong.concept_json;
+        }
       }
     }
 
@@ -126,7 +135,7 @@ export async function POST(req: NextRequest) {
       const [musicResponse, coverResponse] = await Promise.all([
         ai.models.generateContent({
           model: MODELS.LYRIA,
-          contents: lyriaPrompt + "\n\nCreate a song between 2 minutes 45 seconds and 3 minutes long.",
+          contents: lyriaPrompt + "\n\nCreate a song between 2 minutes 45 seconds and 3 minutes long. Ensure you return the raw lyrics in the TEXT response modality.",
           config: { responseModalities: ["AUDIO", "TEXT"] }
         }),
         ai.models.generateContent({
@@ -146,6 +155,14 @@ export async function POST(req: NextRequest) {
             audioBuffer = Buffer.from(part.inlineData.data, 'base64');
           }
         }
+      }
+
+      if (!lyrics.trim()) {
+        console.warn("No lyrics found in response for", concept.title);
+        // We could implement a retry here, but for now we'll just log and continue, 
+        // perhaps marking it so the frontend knows lyrics are missing, or we can just fail the song.
+        // Failing a song in a background queue is tricky without a status update.
+        // We'll proceed but log it.
       }
 
       // Extract Cover

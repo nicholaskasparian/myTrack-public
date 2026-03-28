@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Concept, Song, GenerationStep } from '../../lib/types';
 import ConceptCard from '../../components/ConceptCard';
 import AudioPlayer from '../../components/AudioPlayer';
+import LyricsPlayer from '../../components/LyricsPlayer';
 import RatingSlider from '../../components/RatingSlider';
 
 export default function GeneratePage() {
@@ -26,29 +27,30 @@ export default function GeneratePage() {
   const [showRating, setShowRating] = useState(false);
   const [rating, setRating] = useState(5);
   const [queue, setQueue] = useState<Song[]>([]);
+  const [showLyricsPlayer, setShowLyricsPlayer] = useState(false);
 
-  // Simulate concept loading on mount
-  useEffect(() => {
-    if (step === 'ideas') {
-      fetchConcepts();
-    }
-  }, []);
-
-  const fetchConcepts = async () => {
-    // Simulated API call for concepts
-    setConcepts([
-      { title: 'Neon Midnight', genre: 'Synthwave', secondary_genre: null, mood: 'Driving, nostalgic', bpm: 110, key_instruments: ['Synthesizer', 'Drum Machine'], structure_hint: 'A-B-A', why: 'Matches your late night listening' },
-      { title: 'Acoustic Sunrise', genre: 'Folk', secondary_genre: 'Acoustic Pop', mood: 'Calm, reflective', bpm: 85, key_instruments: ['Acoustic Guitar', 'Vocals'], structure_hint: 'Verse-Chorus-Verse', why: 'High acousticness preference' },
-      { title: 'Hype Workout', genre: 'EDM', secondary_genre: 'House', mood: 'Energetic, driving', bpm: 128, key_instruments: ['Bass Synth', 'Drums'], structure_hint: 'Build-Drop-Build', why: 'High energy preference' }
-    ]);
+  // Generate functions
+  const handleDefaultMix = () => {
+    setStep('prompting');
+    setCompletedSteps(['Profile analyzed']);
+    setCurrentStepText('Engineering your mix...');
+    setSelectedConcept({ title: 'Default Mix', genre: 'Mixed', secondary_genre: null, mood: 'Profile Based', bpm: 120, key_instruments: [], structure_hint: '', why: '' });
+    runGenerationSequence();
   };
 
-  const startGeneration = async (concept: Concept) => {
-    setSelectedConcept(concept);
+  const handleCustomVibe = () => {
+    if (!moodHint.trim()) {
+      alert("Please enter a vibe first!");
+      return;
+    }
     setStep('prompting');
-    setCompletedSteps(['Direction selected']);
+    setCompletedSteps(['Vibe received: ' + moodHint]);
     setCurrentStepText('Engineering your track...');
-    
+    setSelectedConcept({ title: 'Custom Vibe', genre: 'Mixed', secondary_genre: null, mood: moodHint, bpm: 120, key_instruments: [], structure_hint: '', why: '' });
+    runGenerationSequence();
+  };
+
+  const runGenerationSequence = () => {
     // Simulate generation sequence
     setTimeout(() => {
       setStep('lyria');
@@ -93,12 +95,12 @@ export default function GeneratePage() {
           mood: selectedConcept?.mood || null,
           bpm: selectedConcept?.bpm || null,
           lyria_prompt: 'prompt',
-          lyrics: null,
-          vibe: null,
+          lyrics: "[00:15] Verse 1\nWalking down these neon streets\nHeart is skipping to the beats\n\n[00:45] Chorus\nAnd we fly away into the night\nEverything is feeling so right\nYeah we touch the sky, so high\n\n[01:15] Verse 2\nShadows dancing on the wall\nI don't care if we ever fall\n\n[01:45] Chorus\nAnd we fly away into the night\nEverything is feeling so right\nYeah we touch the sky, so high",
+          vibe: selectedConcept?.mood || 'Vibe',
           concept_json: selectedConcept,
           profile_snapshot: null,
           audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Sample audio
-          cover_url: null,
+          cover_url: 'https://images.unsplash.com/photo-1614113489855-66422ad300a4?w=800&q=80',
           duration_seconds: 180,
           is_public: true,
           play_count: 0,
@@ -134,56 +136,114 @@ export default function GeneratePage() {
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', fontFamily: 'var(--font-ibm-plex-sans)' }}>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>CREATE</h1>
-        <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold' }}>Back</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+        <h1 style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>CREATE</h1>
+        <button 
+          onClick={() => router.push('/dashboard')} 
+          style={{ 
+            background: 'transparent', 
+            border: '1px solid var(--ink)', 
+            padding: '6px 16px', 
+            cursor: 'pointer', 
+            fontWeight: 'bold',
+            fontSize: '14px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            transition: 'all 0.2s ease',
+            color: 'var(--ink)'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'var(--ink)';
+            e.currentTarget.style.color = 'var(--bg)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'var(--ink)';
+          }}
+        >
+          Back
+        </button>
       </div>
 
-      {/* STATE 1: Concept Picker */}
+      {/* STATE 1: Simplified Generation Options */}
       {step === 'ideas' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px', color: 'var(--ink)' }}>
-              Optional mood hint (e.g. "late night drive", "studying", "hype workout")
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', marginTop: '32px' }}>
+          <button 
+            onClick={handleDefaultMix}
+            style={{ 
+              background: 'var(--ink)', 
+              color: 'var(--bg)', 
+              padding: '32px', 
+              fontSize: '24px', 
+              fontWeight: 'bold', 
+              border: 'none', 
+              cursor: 'pointer',
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            Play Default Mix
+            <div style={{ fontSize: '14px', fontWeight: 'normal', color: 'rgba(255,255,255,0.7)', marginTop: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
+              We'll auto-generate a track perfectly tailored to your Sound Profile
+            </div>
+          </button>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <label style={{ display: 'block', fontWeight: 'bold', fontSize: '18px', color: 'var(--ink)' }}>
+              Or, select a custom vibe:
             </label>
             <div style={{ display: 'flex', gap: '16px' }}>
               <input 
                 type="text" 
                 value={moodHint}
                 onChange={(e) => setMoodHint(e.target.value)}
-                placeholder="What's the vibe?"
+                placeholder="e.g. late night drive, studying..."
                 style={{ 
                   flex: 1, 
-                  padding: '12px 16px', 
-                  border: '1px solid var(--border)', 
+                  padding: '16px 24px', 
+                  border: '2px solid var(--border)', 
                   outline: 'none',
-                  fontSize: '16px',
+                  fontSize: '18px',
                   background: 'var(--card-bg)'
                 }}
+                onKeyDown={(e) => e.key === 'Enter' && handleCustomVibe()}
               />
               <button 
-                onClick={fetchConcepts}
+                onClick={handleCustomVibe}
                 style={{ 
-                  background: 'none', 
-                  border: '1px solid var(--border)', 
-                  padding: '0 24px', 
+                  background: 'transparent', 
+                  border: '2px solid var(--ink)', 
+                  color: 'var(--ink)',
+                  padding: '0 32px', 
+                  fontSize: '18px',
                   cursor: 'pointer',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'var(--ink)';
+                  e.currentTarget.style.color = 'var(--bg)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--ink)';
+                  e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                Regenerate
+                Create
               </button>
             </div>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px' }}>
-            {concepts.map((concept, idx) => (
-              <ConceptCard 
-                key={idx} 
-                concept={concept} 
-                onSelect={() => startGeneration(concept)} 
-              />
-            ))}
           </div>
         </div>
       )}
@@ -214,7 +274,7 @@ export default function GeneratePage() {
                 height: '16px', 
                 border: '2px solid var(--border)',
                 borderTopColor: 'var(--accent)',
-                borderRadius: '50%',
+                borderRadius: '0',
                 animation: 'spin 1s linear infinite'
               }} />
               <span>{currentStepText}</span>
@@ -286,9 +346,18 @@ export default function GeneratePage() {
             />
 
             <div style={{ display: 'flex', gap: '16px', width: '100%', justifyContent: 'center' }}>
-              <button style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 24px', cursor: 'pointer', fontWeight: 'bold' }}>+ Playlist</button>
-              <button style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 24px', cursor: 'pointer', fontWeight: 'bold' }}>Share</button>
+              <button 
+                onClick={() => setShowLyricsPlayer(true)}
+                style={{ background: 'var(--ink)', color: 'var(--bg)', border: 'none', padding: '12px 24px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Open Full Player & Lyrics
+              </button>
+              <button style={{ background: 'none', border: '1px solid var(--border)', padding: '12px 24px', cursor: 'pointer', fontWeight: 'bold' }}>+ Playlist</button>
             </div>
+
+            {showLyricsPlayer && song && (
+              <LyricsPlayer song={song} onClose={() => setShowLyricsPlayer(false)} />
+            )}
           </div>
 
           {/* Rating Section */}
