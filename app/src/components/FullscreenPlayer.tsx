@@ -13,16 +13,14 @@ type LyricLine = { time: number; text: string; isSection?: boolean };
 // Handles: [mm:ss], [mm:ss.ms], inline [mm:ss] text, Lyria [15.0:], and [Section] tags.
 function parseLRC(lrcText: string): LyricLine[] {
   const normalized = lrcText.replace(/\r\n?/g, '\n').replace(/\\n/g, '\n');
-  const tokenized = normalized
+  const lines = normalized
     .replace(/(\[[^\]]+\])/g, '\n$1\n')
     .split('\n')
     .map(l => l.trim())
     .filter(Boolean);
-  const lines = tokenized;
 
   // [mm:ss] or [mm:ss.ms], optionally followed by inline lyric text
   const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\](.*)$/;
-  const mmssOnlyRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\]$/;
   // Lyria-style [15.0:] timestamps
   const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):\](.*)$/;
   // Section tags: [Chorus], [Verse 1], [Bridge], etc.
@@ -46,13 +44,6 @@ function parseLRC(lrcText: string): LyricLine[] {
       if (inline && !shouldSkipLyricLine(inline)) {
         result.push({ time: currentTime, text: inline });
       }
-      continue;
-    }
-
-    // mm:ss timestamp token only (for one-line block formats)
-    const mmssOnlyMatch = mmssOnlyRegex.exec(line);
-    if (mmssOnlyMatch) {
-      currentTime = parseInt(mmssOnlyMatch[1], 10) * 60 + parseFloat(mmssOnlyMatch[2]);
       continue;
     }
 
