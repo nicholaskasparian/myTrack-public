@@ -24,6 +24,41 @@ export default function GeneratePage() {
   const [rating, setRating] = useState(5);
   const [queue, setQueue] = useState<Song[]>([]);
   const [showLyricsPlayer, setShowLyricsPlayer] = useState(false);
+  const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<any[]>([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+
+  const [hasEnded, setHasEnded] = useState(false);
+
+  const openPlaylistModal = async (songId: string) => {
+    setAddingToPlaylist(songId);
+    setIsLoadingPlaylists(true);
+    try {
+      const res = await fetch('/api/playlists');
+      if (res.ok) {
+        const data = await res.json();
+        setPlaylists(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch playlists', err);
+    } finally {
+      setIsLoadingPlaylists(false);
+    }
+  };
+
+  const selectPlaylist = async (playlistId: string) => {
+    try {
+      await fetch(`/api/playlists/${playlistId}/songs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song_id: addingToPlaylist })
+      });
+      alert('Added to playlist!');
+      setAddingToPlaylist(null);
+    } catch (err) {
+      console.error('Error adding to playlist', err);
+    }
+  };
 
   // Auto-advance logic
   const handleNextTrack = () => {
@@ -35,6 +70,7 @@ export default function GeneratePage() {
       setSong(nextSong);
       
       setShowRating(false);
+      setHasEnded(false);
       triggerBackgroundGeneration();
     }
   };
@@ -106,6 +142,16 @@ export default function GeneratePage() {
     // API call to submit rating
     console.log('Submitted rating:', rating);
     setShowRating(false);
+    if (hasEnded) {
+      handleNextTrack();
+    }
+  };
+
+  const skipRating = () => {
+    setShowRating(false);
+    if (hasEnded) {
+      handleNextTrack();
+    }
   };
 
   return (
@@ -305,7 +351,7 @@ export default function GeneratePage() {
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => {
                 setShowRating(true);
-                handleNextTrack();
+                setHasEnded(true);
               }}
             />
 
@@ -316,13 +362,18 @@ export default function GeneratePage() {
               >
                 Open Full Player & Lyrics
               </button>
-              <button style={{ background: 'none', border: '1px solid var(--border)', padding: '12px 24px', cursor: 'pointer', fontWeight: 'bold' }}>+ Playlist</button>
+              <button 
+                onClick={() => song && openPlaylistModal(song.id)}
+                style={{ background: 'none', border: '1px solid var(--border)', padding: '12px 24px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                + Playlist
+              </button>
             </div>
 
             {showLyricsPlayer && song && (
               <LyricsPlayer song={song} onClose={() => setShowLyricsPlayer(false)} onNext={() => {
                 setShowRating(true);
-                handleNextTrack();
+                setHasEnded(true);
               }} />
             )}
           </div>
@@ -385,7 +436,7 @@ export default function GeneratePage() {
               <h3 style={{ fontSize: '18px', fontWeight: 'bold', textAlign: 'center' }}>How does this track fit your vibe?</h3>
               <RatingSlider value={rating} onChange={setRating} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-                <button onClick={() => setShowRating(false)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer', textDecoration: 'underline' }}>Skip rating</button>
+                <button onClick={skipRating} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer', textDecoration: 'underline' }}>Skip rating</button>
                 <button 
                   onClick={submitRating}
                   style={{ 
@@ -420,6 +471,48 @@ export default function GeneratePage() {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* Playlist Modal */}
+      {addingToPlaylist && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(247, 246, 242, 0.9)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 200
+        }}>
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 1rem 0' }}>Add to Playlist</h3>
+            {isLoadingPlaylists ? (
+              <p>Loading playlists...</p>
+            ) : playlists.length === 0 ? (
+              <p style={{ color: 'var(--ink-muted)' }}>No playlists found.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                {playlists.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectPlaylist(p.id)}
+                    style={{
+                      padding: '12px', textAlign: 'left', background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = 'var(--border)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'var(--bg)'}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button 
+              onClick={() => setAddingToPlaylist(null)}
+              style={{ background: 'transparent', border: 'none', padding: '12px 0 0 0', cursor: 'pointer', width: '100%', textDecoration: 'underline' }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

@@ -24,6 +24,8 @@ export default function LyricsPlayer({
   const lyricsText = song.lyrics || "No lyrics available.";
   const lines = lyricsText.split('\n').filter(line => line.trim().length > 0);
 
+  const lastTargetLineRef = useRef<number>(-1);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -34,13 +36,17 @@ export default function LyricsPlayer({
       if (scrollRef.current && duration > 0 && lines.length > 0) {
         const progress = audio.currentTime / duration;
         const targetLine = Math.floor(progress * lines.length);
-        const lineElements = scrollRef.current.children;
         
-        if (lineElements && lineElements[targetLine]) {
-          lineElements[targetLine].scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
+        if (targetLine !== lastTargetLineRef.current) {
+          lastTargetLineRef.current = targetLine;
+          const lineElements = scrollRef.current.children;
+          
+          if (lineElements && lineElements[targetLine]) {
+            lineElements[targetLine].scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
         }
       }
     };
