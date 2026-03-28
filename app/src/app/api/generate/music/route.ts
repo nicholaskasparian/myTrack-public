@@ -64,12 +64,20 @@ export async function POST(req: NextRequest) {
       contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
       config: { 
         responseMimeType: 'application/json',
+        responseJsonSchema: { type: 'object', properties: { lyrics: { type: 'string' }, lyria_prompt: { type: 'string' } }, required: ['lyrics', 'lyria_prompt'] },
         systemInstruction: SYSTEM_INSTRUCTION_PROMPT 
       }
     });
 
     const responseText = promptResponse.text?.trim() || "{}";
-    const { lyrics: proLyrics = "", lyria_prompt = "" } = JSON.parse(responseText);
+    let parsedResponse: any = {};
+    try {
+      parsedResponse = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse Gemini response', responseText);
+      return NextResponse.json({ error: 'Failed to generate prompt or lyrics format' }, { status: 500 });
+    }
+    const { lyrics: proLyrics = "", lyria_prompt = "" } = parsedResponse;
 
     if (!proLyrics || !lyria_prompt) {
       return NextResponse.json({ error: 'Failed to generate prompt or lyrics' }, { status: 500 });
