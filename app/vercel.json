@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/generate/music/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/generate/queue/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}
