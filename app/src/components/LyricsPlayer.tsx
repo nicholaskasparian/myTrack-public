@@ -84,18 +84,36 @@ function parseLRC(lrcText: string) {
     return lrcText.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => ({ time: 0, text: l }));
   }
 
-  // Group lines with same timestamp to avoid overlapping
-  const grouped: { time: number; text: string }[] = [];
-  for (const entry of parsed) {
-    const existing = grouped.find(g => g.time === entry.time);
-    if (existing) {
-      existing.text += '\n' + entry.text;
-    } else {
-      grouped.push(entry);
+  // Keep lines separate and spread same-timestamp runs so each line can sync independently
+  const sorted = [...parsed].sort((a, b) => a.time - b.time);
+  const normalized: { time: number; text: string }[] = [];
+  const DEFAULT_LINE_SECONDS = 2;
+
+  let currentIndex = 0;
+  while (currentIndex < sorted.length) {
+    const startTime = sorted[currentIndex].time;
+    let runEndIndex = currentIndex;
+    while (runEndIndex + 1 < sorted.length && sorted[runEndIndex + 1].time === startTime) {
+      runEndIndex++;
     }
+
+    const runCount = runEndIndex - currentIndex + 1;
+    const nextTime = runEndIndex + 1 < sorted.length ? sorted[runEndIndex + 1].time : null;
+    const hasFutureGap = nextTime !== null && nextTime > startTime;
+    // Evenly distribute the available gap so each line in this same-timestamp run advances in order.
+    const step = hasFutureGap ? (nextTime - startTime) / runCount : DEFAULT_LINE_SECONDS;
+
+    for (let lineOffset = 0; lineOffset < runCount; lineOffset++) {
+      normalized.push({
+        time: startTime + step * lineOffset,
+        text: sorted[currentIndex + lineOffset].text
+      });
+    }
+
+    currentIndex = runEndIndex + 1;
   }
 
-  return grouped.sort((a, b) => a.time - b.time);
+  return normalized;
 }
 
 export default function LyricsPlayer({
