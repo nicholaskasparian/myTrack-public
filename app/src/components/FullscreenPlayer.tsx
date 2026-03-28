@@ -7,6 +7,8 @@ import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
 const LRC_INLINE_PREFIX_TAG = '[:]';
+const ABBREVIATION_CONTEXT_LENGTH = 12;
+const ABBREVIATION_TAIL_PATTERN = /(?:\b[A-Z]\.|(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|vs|etc))\.$/;
 
 function parseLRC(lrcText: string) {
   const normalizedText = lrcText
@@ -21,6 +23,14 @@ function parseLRC(lrcText: string) {
   
   // 3. Add newlines before AND after structural tags
   text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
+
+  // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
+  // while avoiding common abbreviation/acronym patterns.
+  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
+    const precedingContext = source.slice(Math.max(0, offset - ABBREVIATION_CONTEXT_LENGTH), offset + 1);
+    if (ABBREVIATION_TAIL_PATTERN.test(precedingContext)) return match;
+    return `${punctuation}\n `;
+  });
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
@@ -148,6 +158,15 @@ export default function FullscreenPlayer({
       document.body.style.overflow = previousOverflow;
     };
   }, []);
+
+  useEffect(() => {
+    if (!onClose) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     if (song) setRating(song.rating || 0);
@@ -340,6 +359,8 @@ export default function FullscreenPlayer({
         {onClose && (
           <button 
             onClick={onClose}
+            aria-label="Exit fullscreen player"
+            title="Exit fullscreen (Esc)"
             style={{ 
               color: 'white', 
               fontSize: '14px', 
@@ -356,7 +377,7 @@ export default function FullscreenPlayer({
             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           >
-            Close
+            Exit fullscreen
           </button>
         )}
       </div>
@@ -405,6 +426,7 @@ export default function FullscreenPlayer({
             <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)' }}>
               {song?.genre || 'Generated session'} • {song?.bpm ? `${song.bpm} BPM` : (isWaitingForQueueStart ? 'Queue building' : 'Unknown BPM')}
             </div>
+            {onClose && <div style={{ marginTop: '8px', fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>Press Esc to exit</div>}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(0,0,0,0.5)', padding: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
