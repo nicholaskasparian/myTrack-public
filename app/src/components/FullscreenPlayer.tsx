@@ -307,7 +307,7 @@ export default function FullscreenPlayer({
     }}>
       
       {/* Background with Glassmorphism */}
-      {song.cover_url && (
+      {song?.cover_url && (
         <div style={{
           position: 'absolute',
           top: '-10%',
