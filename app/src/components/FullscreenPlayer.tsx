@@ -7,6 +7,7 @@ import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
 const LRC_INLINE_PREFIX_TAG = '[:]';
+const ABBREVIATION_CONTEXT_LENGTH = 12;
 
 function parseLRC(lrcText: string) {
   const normalizedText = lrcText
@@ -25,7 +26,7 @@ function parseLRC(lrcText: string) {
   // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
   // while avoiding common abbreviation/acronym patterns.
   text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
-    const previousChunk = source.slice(Math.max(0, offset - 12), offset + 1);
+    const previousChunk = source.slice(Math.max(0, offset - ABBREVIATION_CONTEXT_LENGTH), offset + 1);
     const abbreviationTailRegex = /(?:\b[A-Z]\.|(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|vs|etc))\.$/;
     if (abbreviationTailRegex.test(previousChunk)) return match;
     return `${punctuation}\n`;

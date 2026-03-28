@@ -22,6 +22,9 @@ import ai, { MODELS } from '../../../../lib/gemini';
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 
+const CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F]/g;
+const MAX_QUERY_LENGTH = 200;
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = auth();
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
     if (!query || typeof query !== 'string') {
       return NextResponse.json({ error: 'Missing or invalid query' }, { status: 400 });
     }
-    const normalizedQuery = query.trim().replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 200);
+    const normalizedQuery = query.trim().replace(CONTROL_CHAR_PATTERN, '').slice(0, MAX_QUERY_LENGTH);
     if (!normalizedQuery) {
       return NextResponse.json({ error: 'Missing or invalid query' }, { status: 400 });
     }
@@ -78,13 +81,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 2 fallback: text search (works without embedding API or RPC setup)
-    const escapedQuery = normalizedQuery.replace(/[\\%_]/g, (match) => `\\${match}`);
-    const ilike = `%${escapedQuery}%`;
+    const queryTerms = normalizedQuery
+      .split(/\s+/)
+      .map((term) => term.trim().replace(/[^a-zA-Z0-9-]/g, ''))
+      .filter(Boolean)
+      .slice(0, 6);
+
+    if (queryTerms.length === 0) {
+      return NextResponse.json({ results: [] });
+    }
+
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('songs')
       .select('*')
       .eq('user_id', userId)
-      .or(`title.ilike.${ilike},genre.ilike.${ilike},mood.ilike.${ilike},vibe.ilike.${ilike},lyrics.ilike.${ilike}`)
+      .or(
+        queryTerms
+          .flatMap((term) => [
+            `title.ilike.%${term}%`,
+            `genre.ilike.%${term}%`,
+            `mood.ilike.%${term}%`,
+            `vibe.ilike.%${term}%`,
+            `lyrics.ilike.%${term}%`,
+          ])
+          .join(',')
+      )
       .order('created_at', { ascending: false })
       .limit(20);
 
