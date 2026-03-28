@@ -213,6 +213,7 @@ export async function POST(req: NextRequest) {
         genre: concept.genre,
         mood: concept.mood,
         bpm: concept.bpm,
+        vibe: mixType === 'Custom Vibe' ? vibePrompt : concept.mood,
         lyria_prompt: lyria_prompt,
         lyrics: proLyrics.trim(),
         audio_url: audioUrl,

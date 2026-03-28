@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Fetch Audio Features
     const allTrackIds = Array.from(new Set([
-      ...(shortTermRes?.items || []).map((t: any) => t.id),
-      ...(mediumTermRes?.items || []).map((t: any) => t.id),
-      ...(longTermRes?.items || []).map((t: any) => t.id),
+      ...(shortTermRes?.items || []).map((t: any) => t?.id),
+      ...(mediumTermRes?.items || []).map((t: any) => t?.id),
+      ...(longTermRes?.items || []).map((t: any) => t?.id),
     ])).filter(Boolean) as string[];
 
     const audioFeaturesMap = new Map<string, any>();
@@ -105,10 +105,34 @@ export async function POST(request: NextRequest) {
     
     const calcAvg = (tracks: any[], dimension: string) => {
       const validFeats = (tracks || [])
-        .map(t => audioFeaturesMap.get(t.id))
+        .map(t => audioFeaturesMap.get(t?.id))
         .filter(f => f && typeof f[dimension] === 'number');
-      if (validFeats.length === 0) return 0.5; // Neutral fallback
-      const sum = validFeats.reduce((acc, f) => acc + f[dimension], 0);
+      
+      console.log(`[Spotify Sync] validFeats.length for ${dimension}: ${validFeats.length}`);
+      
+      if (validFeats.length === 0) {
+        console.warn(`[Spotify Sync] WARNING: No valid features found for dimension ${dimension}.`);
+        const fallbacks: Record<string, number> = {
+          tempo: 0.6,
+          energy: 0.65,
+          valence: 0.5,
+          danceability: 0.6,
+          acousticness: 0.2,
+          instrumentalness: 0.05,
+          speechiness: 0.1,
+          liveness: 0.15
+        };
+        return fallbacks[dimension] ?? 0.5;
+      }
+      
+      const sum = validFeats.reduce((acc, f) => {
+        let val = f[dimension];
+        if (dimension === 'tempo') {
+          val = Math.min(val / 200, 1.0);
+        }
+        return acc + val;
+      }, 0);
+      
       return sum / validFeats.length;
     };
 
@@ -223,8 +247,11 @@ export async function POST(request: NextRequest) {
         }
 
         for (const dim of dims) {
-          const val = features[dim] ?? (dim === 'tempo' ? features['bpm'] : null);
+          let val = features[dim] ?? (dim === 'tempo' ? features['bpm'] : null);
           if (typeof val === 'number') {
+            if (dim === 'tempo' && val > 1.0) {
+              val = Math.min(val / 200, 1.0);
+            }
             myTrackModifiers[dim] += multiplier * val;
           }
         }

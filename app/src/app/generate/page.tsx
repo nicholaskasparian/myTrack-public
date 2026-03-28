@@ -18,7 +18,6 @@ export default function GeneratePage() {
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
   
   // Generating state
-  const [generatingProgress, setGeneratingProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [currentStepText, setCurrentStepText] = useState('');
   
@@ -58,11 +57,9 @@ export default function GeneratePage() {
 
   // Generate functions
   const handleDefaultMix = () => {
-    setStep('prompting');
-    setCompletedSteps(['Profile analyzed']);
-    setCurrentStepText('Engineering your mix...');
-    setSelectedConcept({ title: 'Default Mix', genre: 'Mixed', secondary_genre: null, mood: 'Profile Based', bpm: 120, key_instruments: [], structure_hint: '', why: '' });
-    runGenerationSequence();
+    const concept = { title: 'Default Mix', genre: 'Mixed', secondary_genre: null, mood: 'Profile Based', bpm: 120, key_instruments: [], structure_hint: '', why: '' };
+    setSelectedConcept(concept);
+    runGenerationSequence(concept);
   };
 
   const handleCustomVibe = () => {
@@ -70,86 +67,46 @@ export default function GeneratePage() {
       alert("Please enter a vibe first!");
       return;
     }
+    const concept = { title: 'Custom Vibe', genre: 'Mixed', secondary_genre: null, mood: moodHint, bpm: 120, key_instruments: [], structure_hint: '', why: '' };
+    setSelectedConcept(concept);
+    runGenerationSequence(concept);
+  };
+
+  const runGenerationSequence = async (concept: Concept) => {
     setStep('prompting');
-    setCompletedSteps(['Vibe received: ' + moodHint]);
-    setCurrentStepText('Engineering your track...');
-    setSelectedConcept({ title: 'Custom Vibe', genre: 'Mixed', secondary_genre: null, mood: moodHint, bpm: 120, key_instruments: [], structure_hint: '', why: '' });
-    runGenerationSequence();
-  };
-
-  const runGenerationSequence = () => {
-    // Fire off the background generation for the next song in the queue immediately
-    triggerBackgroundGeneration();
-
-    // Simulate generation sequence
-    setTimeout(() => {
-      setStep('lyria');
-      setCompletedSteps(prev => [...prev, 'Engineering your track...']);
-      setCurrentStepText('Composing with Lyria...');
-      
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 5;
-        setGeneratingProgress(progress);
-        if (progress >= 100) {
-          clearInterval(interval);
-          finishGeneration();
-        }
-      }, 200);
-      
-    }, 1500);
-  };
-
-  const finishGeneration = () => {
-    setStep('cover');
-    setCompletedSteps(prev => [...prev, 'Composing with Lyria...']);
-    setCurrentStepText('Generating cover art...');
+    setCompletedSteps(['Profile analyzed', 'Concept selected']);
+    setCurrentStepText('Loading Feed...');
     
-    setTimeout(() => {
-      setStep('uploading');
-      setCompletedSteps(prev => [...prev, 'Generating cover art...']);
-      setCurrentStepText('Saving your song...');
+    try {
+      // Make real API call to /api/generate/music
+      const response = await fetch('/api/generate/music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ concept })
+      });
       
-      setTimeout(() => {
-        setStep('done');
-        setCompletedSteps(prev => [...prev, 'Saving your song...']);
-        setCurrentStepText('Your song is ready');
-        
-        // Mock Song data
-        setSong({
-          id: '123',
-          user_id: 'user',
-          created_at: new Date().toISOString(),
-          title: selectedConcept?.title || 'New Song',
-          genre: selectedConcept?.genre || 'Unknown',
-          mood: selectedConcept?.mood || null,
-          bpm: selectedConcept?.bpm || null,
-          lyria_prompt: 'prompt',
-          lyrics: "[00:15] Verse 1\nWalking down these neon streets\nHeart is skipping to the beats\n\n[00:45] Chorus\nAnd we fly away into the night\nEverything is feeling so right\nYeah we touch the sky, so high\n\n[01:15] Verse 2\nShadows dancing on the wall\nI don't care if we ever fall\n\n[01:45] Chorus\nAnd we fly away into the night\nEverything is feeling so right\nYeah we touch the sky, so high",
-          vibe: selectedConcept?.mood || 'Vibe',
-          concept_json: selectedConcept,
-          profile_snapshot: null,
-          audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Sample audio
-          cover_url: 'https://images.unsplash.com/photo-1614113489855-66422ad300a4?w=800&q=80',
-          duration_seconds: 180,
-          is_public: true,
-          play_count: 0,
-          rating: null,
-          resurface: false,
-          status: 'ready',
-          queue_position: null
-        });
-        
-        // Mock Queue
-        setQueue([
-          { id: '1', title: 'Up Next 1', genre: 'Pop', bpm: 120 } as Song,
-          { id: '2', title: 'Up Next 2', genre: 'Rock', bpm: 140 } as Song,
-          { id: '3', title: 'Up Next 3', genre: 'Jazz', bpm: 90 } as Song
-        ]);
-        
-      }, 1000);
-    }, 1000);
+      if (!response.ok) {
+        throw new Error('Failed to generate music');
+      }
+      
+      const data = await response.json();
+      
+      setStep('done');
+      setSong(data.song);
+      
+      // As soon as the first song is loaded, trigger queue generation
+      triggerBackgroundGeneration();
+      
+      // Initialize an empty queue to be populated by the backend or subsequent calls
+      setQueue([]);
+    } catch (error) {
+      console.error('Error generating:', error);
+      alert('Failed to generate your song. Please try again.');
+      setStep('ideas');
+    }
   };
+
+
 
   const handleTimeUpdate = (currentTime: number) => {
     if (currentTime >= 20 && !showRating) {
@@ -310,20 +267,6 @@ export default function GeneratePage() {
               <span>{currentStepText}</span>
             </div>
           </div>
-
-          {step === 'lyria' && (
-            <div style={{ maxWidth: '400px', margin: '0 auto', width: '100%', height: '4px', background: 'var(--border)', position: 'relative' }}>
-              <div style={{ 
-                position: 'absolute', 
-                left: 0, 
-                top: 0, 
-                height: '100%', 
-                width: `${generatingProgress}%`, 
-                background: 'var(--progress)',
-                transition: 'width 0.2s ease'
-              }} />
-            </div>
-          )}
           
           <style dangerouslySetInnerHTML={{__html: `
             @keyframes spin {

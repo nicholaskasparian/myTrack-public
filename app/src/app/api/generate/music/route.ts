@@ -24,14 +24,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { concept, sound_profile } = body as { 
-      concept: Concept; 
-      sound_profile: SoundProfile;
-    };
+    const body = await req.json().catch(() => ({}));
+    const concept = body.concept;
+    let sound_profile = body.sound_profile;
 
-    if (!concept || !sound_profile) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+    const supabase = getSupabaseAdmin();
+
+    if (!sound_profile) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('sound_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileError || !profileData) {
+        console.error('Error fetching sound profile:', profileError);
+        // Fallback to a default if absolutely necessary, but preferably fail gracefully
+        return NextResponse.json({ error: 'Sound profile not found' }, { status: 404 });
+      }
+      sound_profile = profileData;
+    }
+
+    if (!concept) {
+      return NextResponse.json({ error: 'Missing concept parameter' }, { status: 400 });
     }
 
     // Stage 2: Prompt & Lyrics Generation via Gemini Pro
@@ -103,7 +118,6 @@ export async function POST(req: NextRequest) {
     }
 
     const songId = nanoid();
-    const supabase = getSupabaseAdmin();
 
     const { error: uploadError } = await supabase.storage
       .from('audio')
@@ -138,6 +152,7 @@ export async function POST(req: NextRequest) {
       genre: concept.genre,
       mood: concept.mood,
       bpm: concept.bpm,
+      vibe: concept.mood,
       lyria_prompt: lyria_prompt,
       lyrics: proLyrics.trim(),
       audio_url: audioUrl,
