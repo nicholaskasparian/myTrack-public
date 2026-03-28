@@ -22,8 +22,14 @@ function parseLRC(lrcText: string) {
   // 3. Add newlines before AND after structural tags
   text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
 
-  // 4. Split sentence-clumped lyric paragraphs into readable lyric lines
-  text = text.replace(/([.?!])\s+(?=[A-Z])/g, '$1\n');
+  // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
+  // while avoiding common abbreviation/acronym patterns.
+  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
+    const previousChunk = source.slice(Math.max(0, offset - 12), offset + 1);
+    const abbreviationTailRegex = /(?:\b[A-Z]\.|(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|vs|etc))\.$/;
+    if (abbreviationTailRegex.test(previousChunk)) return match;
+    return `${punctuation}\n`;
+  });
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   

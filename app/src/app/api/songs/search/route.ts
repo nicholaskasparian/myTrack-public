@@ -35,6 +35,10 @@ export async function POST(req: NextRequest) {
     if (!query || typeof query !== 'string') {
       return NextResponse.json({ error: 'Missing or invalid query' }, { status: 400 });
     }
+    const normalizedQuery = query.trim().replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 200);
+    if (!normalizedQuery) {
+      return NextResponse.json({ error: 'Missing or invalid query' }, { status: 400 });
+    }
 
     const supabase = getSupabaseAdmin();
 
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
     try {
       const result = await ai.models.embedContent({
         model: MODELS.EMBEDDING,
-        contents: query,
+        contents: normalizedQuery,
         config: {
           taskType: 'RETRIEVAL_QUERY',
         },
@@ -70,11 +74,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ results: data || [] });
     } catch (semanticError) {
-      console.warn('Semantic search unavailable, falling back to text search:', semanticError);
+      console.warn('Semantic search unavailable (embedding generation or search_songs RPC failed), falling back to text search:', semanticError);
     }
 
     // Step 2 fallback: text search (works without embedding API or RPC setup)
-    const escapedQuery = query.replace(/[%_]/g, (match) => `\\${match}`);
+    const escapedQuery = normalizedQuery.replace(/[\\%_]/g, (match) => `\\${match}`);
     const ilike = `%${escapedQuery}%`;
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('songs')
