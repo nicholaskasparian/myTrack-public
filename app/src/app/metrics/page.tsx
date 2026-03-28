@@ -37,8 +37,8 @@ export default function MetricsPage() {
       if (!res.ok) throw new Error('Failed to load metrics')
       const data = await res.json()
       setMetrics(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load metrics')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load metrics')
     } finally {
       setLoading(false)
     }
@@ -55,7 +55,10 @@ export default function MetricsPage() {
     return `You generated ${metrics.total_songs} tracks and your strongest lane is ${topGenre}.`
   }, [metrics])
 
-  const maxDayCount = Math.max(1, ...(metrics?.generation_by_day.map((d) => d.count) || [1]))
+  const maxDayCount = useMemo(() => {
+    if (!metrics) return 1
+    return Math.max(1, ...metrics.generation_by_day.map((d) => d.count), 1)
+  }, [metrics])
 
   return (
     <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -113,7 +116,7 @@ export default function MetricsPage() {
                   {metrics.top_genres.map((genre) => (
                     <div key={genre.genre} style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '0.55rem', alignItems: 'center' }}>
                       <span style={{ color: 'var(--ink-muted)', fontSize: '0.82rem' }}>{genre.genre}</span>
-                      <div style={{ height: 8, borderRadius: 999, background: 'rgba(22,28,40,0.14)', overflow: 'hidden' }}>
+                      <div style={{ height: 8, borderRadius: 0, background: 'rgba(22,28,40,0.14)', overflow: 'hidden' }}>
                         <div
                           style={{
                             height: '100%',
@@ -145,7 +148,7 @@ export default function MetricsPage() {
                           width: '100%',
                           maxWidth: 24,
                           height: `${Math.max(12, Math.round((point.count / maxDayCount) * 110))}px`,
-                          borderRadius: 6,
+                          borderRadius: 0,
                           background: 'linear-gradient(180deg, #6b7ea8 0%, #1f2737 100%)',
                         }}
                       />

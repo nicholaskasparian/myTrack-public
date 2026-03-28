@@ -75,6 +75,11 @@ export async function POST(req: NextRequest) {
       console.error('Error fetching sound profile:', profileError);
       return NextResponse.json({ error: 'Sound profile not found' }, { status: 404 });
     }
+
+    if (countError) {
+      console.error('Error fetching queue count:', countError);
+      return NextResponse.json({ error: 'Failed to check current queue' }, { status: 500 });
+    }
     
     const targetQueueSize = 2;
     const neededCount = targetQueueSize - (queueCount || 0);
@@ -190,9 +195,8 @@ export async function POST(req: NextRequest) {
         // b. Music & Cover in Parallel
         const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
 
-        const mediaStartedAt = Date.now();
-        const [musicResponse, coverResponse] = await Promise.all([
-          ai.models.generateContent({
+        const musicStartedAt = Date.now();
+        const musicPromise = ai.models.generateContent({
             model: MODELS.LYRIA,
             contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${sanitizeLyrics(proLyrics)}`,
             config: { 
@@ -204,13 +208,18 @@ export async function POST(req: NextRequest) {
                 { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
               ]
             }
-          }),
-          ai.models.generateContent({
+          });
+
+        const coverStartedAt = Date.now();
+        const coverPromise = ai.models.generateContent({
             model: MODELS.NANO_BANANA,
             contents: coverPrompt,
-          })
-        ]);
-        const mediaMs = Date.now() - mediaStartedAt;
+          });
+
+        // These durations are measured from individual promise start times to the shared Promise.all completion and may overlap.
+        const [musicResponse, coverResponse] = await Promise.all([musicPromise, coverPromise]);
+        const musicMs = Date.now() - musicStartedAt;
+        const coverMs = Date.now() - coverStartedAt;
 
 
         // Extract Music
@@ -282,8 +291,6 @@ export async function POST(req: NextRequest) {
         }
         const uploadMs = Date.now() - uploadStartedAt;
         const totalMs = Date.now() - trackStartedAt;
-        const coverMs = Math.max(0, mediaMs - (mediaMs > 0 ? Math.round(mediaMs * 0.82) : 0));
-        const musicMs = Math.max(0, mediaMs - coverMs);
 
         // 5. Store with status='queued'
         const newSong: Partial<Song> = {
@@ -305,14 +312,6 @@ export async function POST(req: NextRequest) {
           is_public: false,
           play_count: 0,
           resurface: false,
-          generation_timing: {
-            started_at: new Date(trackStartedAt).toISOString(),
-            prompt_ms: promptMs,
-            music_ms: musicMs,
-            cover_ms: coverMs,
-            upload_ms: uploadMs,
-            total_ms: totalMs,
-          },
         };
 
         await supabase.from('songs').insert([newSong]);

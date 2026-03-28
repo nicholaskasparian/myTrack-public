@@ -64,6 +64,7 @@ export interface Song {
   resurface: boolean;
   status: 'queued' | 'ready' | 'played';
   queue_position: number | null;
+  generation_timing?: GenerationTiming;
 }
 
 // ─── Playlist (PRD §9) ────────────────────────────────────────────────

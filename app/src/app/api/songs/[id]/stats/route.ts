@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../../../../lib/supabase';
+import { getSupabaseAdmin } from '../../../../../lib/supabase';
+import type { Song } from '../../../../../lib/types';
 
 export const dynamic = 'force-dynamic';
+
+type RatingRow = { rating: number | null };
 
 export async function GET(
   _request: Request,
@@ -27,20 +30,50 @@ export async function GET(
       .select('rating')
       .eq('song_id', id);
 
-    const ratingsValues = (ratings || []).map((entry: any) => entry.rating).filter((r: any) => typeof r === 'number');
+    const ratingsValues = ((ratings || []) as RatingRow[])
+      .map((entry) => entry.rating)
+      .filter((r): r is number => typeof r === 'number');
     const avgRating =
       ratingsValues.length > 0
         ? Number((ratingsValues.reduce((acc: number, value: number) => acc + value, 0) / ratingsValues.length).toFixed(1))
         : song.rating ?? null;
 
-    const { data: relatedSongs } = await supabase
-      .from('songs')
-      .select('*')
-      .eq('is_public', true)
-      .neq('id', id)
-      .or(`genre.eq.${song.genre || ''},mood.eq.${song.mood || ''}`)
-      .order('rating', { ascending: false })
-      .limit(6);
+    const relatedByGenrePromise = song.genre
+      ? supabase
+          .from('songs')
+          .select('*')
+          .eq('is_public', true)
+          .neq('id', id)
+          .eq('genre', song.genre)
+          .order('rating', { ascending: false })
+          .limit(6)
+      : Promise.resolve({ data: [] as Song[] });
+
+    const relatedByMoodPromise = song.mood
+      ? supabase
+          .from('songs')
+          .select('*')
+          .eq('is_public', true)
+          .neq('id', id)
+          .eq('mood', song.mood)
+          .order('rating', { ascending: false })
+          .limit(6)
+      : Promise.resolve({ data: [] as Song[] });
+
+    const [{ data: relatedByGenre }, { data: relatedByMood }] = await Promise.all([
+      relatedByGenrePromise,
+      relatedByMoodPromise,
+    ]);
+
+    const relatedSongMap = new Map<string, Song>();
+    ([...(relatedByGenre || []), ...(relatedByMood || [])] as Song[]).forEach((candidate) => {
+      if (candidate?.id && !relatedSongMap.has(candidate.id)) {
+        relatedSongMap.set(candidate.id, candidate);
+      }
+    });
+    const relatedSongs = [...relatedSongMap.values()]
+      .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+      .slice(0, 6);
 
     return NextResponse.json({
       play_count: song.play_count || 0,

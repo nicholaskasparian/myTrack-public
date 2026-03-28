@@ -23,17 +23,42 @@ export async function POST(request: NextRequest) {
     }
 
     const currentCount = song.play_count || 0;
-    const { error: updateError } = await supabase
-      .from('songs')
-      .update({ play_count: currentCount + 1 })
-      .eq('id', songId);
+    let observedCount = currentCount;
+    let succeeded = false;
 
-    if (updateError) {
-      console.error('Failed to increment shared song play count:', updateError);
+    for (let attempt = 0; attempt < 3 && !succeeded; attempt++) {
+      const { error: updateError } = await supabase
+        .from('songs')
+        .update({ play_count: observedCount + 1 })
+        .eq('id', songId)
+        .eq('play_count', observedCount);
+
+      if (!updateError) {
+        succeeded = true;
+        observedCount = observedCount + 1;
+        break;
+      }
+
+      const { data: latestSong, error: latestFetchError } = await supabase
+        .from('songs')
+        .select('play_count')
+        .eq('id', songId)
+        .single();
+
+      if (latestFetchError || !latestSong) {
+        console.error('Failed to read shared song play count after conflict:', latestFetchError || updateError);
+        return NextResponse.json({ error: 'Failed to record play' }, { status: 500 });
+      }
+
+      observedCount = latestSong.play_count || 0;
+      await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
+    }
+
+    if (!succeeded) {
       return NextResponse.json({ error: 'Failed to record play' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, play_count: currentCount + 1 });
+    return NextResponse.json({ ok: true, play_count: observedCount });
   } catch (error) {
     console.error('Error recording shared song play:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

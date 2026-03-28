@@ -4,6 +4,15 @@ import { getSupabaseAdmin } from '../../../../lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+type SongStatsRow = {
+  id: string;
+  created_at: string;
+  genre: string | null;
+  status: 'queued' | 'ready' | 'played';
+  rating: number | null;
+  resurface: boolean;
+};
+
 export async function GET() {
   try {
     const { userId } = auth();
@@ -37,20 +46,21 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
     }
 
-    const safeSongs = songs || [];
-    const ratings = safeSongs.map((song: any) => song.rating).filter((v: any) => typeof v === 'number');
+    const safeSongs: SongStatsRow[] = (songs || []) as SongStatsRow[];
+    const ratings = safeSongs
+      .map((song) => song.rating)
+      .filter((v): v is number => typeof v === 'number');
     const avgRating = ratings.length ? Number((ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1)) : null;
 
     const genreCounts = new Map<string, number>();
     const dailyCounts = new Map<string, number>();
 
-    safeSongs.forEach((song: any) => {
+    safeSongs.forEach((song) => {
       const genre = song.genre || 'Unknown';
       genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1);
 
       const day = song.created_at ? new Date(song.created_at).toISOString().split('T')[0] : 'unknown';
       dailyCounts.set(day, (dailyCounts.get(day) || 0) + 1);
-
     });
 
     const topGenres = [...genreCounts.entries()]
@@ -63,9 +73,9 @@ export async function GET() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([day, count]) => ({ day, count }));
 
-    const resurfacedCount = safeSongs.filter((song: any) => song.resurface).length;
-    const queuedCount = safeSongs.filter((song: any) => song.status === 'queued').length;
-    const playedCount = safeSongs.filter((song: any) => song.status === 'played').length;
+    const resurfacedCount = safeSongs.filter((song) => song.resurface).length;
+    const queuedCount = safeSongs.filter((song) => song.status === 'queued').length;
+    const playedCount = safeSongs.filter((song) => song.status === 'played').length;
 
     return NextResponse.json({
       total_songs: safeSongs.length,
