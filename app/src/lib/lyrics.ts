@@ -7,9 +7,11 @@ const SECTION_TAG_REGEX = new RegExp(`^\\[(${SECTION_NAME_REGEX})\\]$`, 'i');
 
 export type LyricLine = { time: number; text: string; isSection?: boolean };
 
+type LyricLineToken = { kind: 'line'; text: string; isSection: boolean; time?: number };
+
 type LyricToken =
   | { kind: 'anchor'; time: number }
-  | { kind: 'line'; text: string; isSection: boolean; time?: number };
+  | LyricLineToken;
 
 export function shouldSkipLyricLine(line: string) {
   const cleanLine = line.trim();
@@ -123,12 +125,26 @@ export function parseTimedLyrics(raw: string): LyricLine[] {
     }
   }
 
-  const result: LyricLine[] = tokens
-    .filter((token): token is Extract<LyricToken, { kind: 'line' }> => token.kind === 'line')
+  let fallbackTime = 0;
+  for (const token of tokens) {
+    if (token.kind !== 'line') continue;
+    if (token.time === undefined) {
+      token.time = fallbackTime;
+    } else {
+      fallbackTime = token.time;
+    }
+  }
+
+  const timedLineTokens = tokens.filter(
+    (token): token is LyricLineToken & { time: number } =>
+      token.kind === 'line' && typeof token.time === 'number'
+  );
+
+  const result: LyricLine[] = timedLineTokens
     .map((token) => ({
-      time: token.time ?? 0,
+      time: token.time,
       text: token.text,
-      isSection: token.isSection ? true : undefined,
+      ...(token.isSection ? { isSection: true } : {}),
     }));
 
   if (result.length === 0) {
