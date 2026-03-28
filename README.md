@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
     U[User] --> A[Sign in with Clerk]
     A --> B[Connect Spotify]
