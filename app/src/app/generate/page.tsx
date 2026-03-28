@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Concept, Song, GenerationStep } from '../../lib/types';
-import ConceptCard from '../../components/ConceptCard';
+import type { Song, GenerationStep } from '../../lib/types';
 import AudioPlayer from '../../components/AudioPlayer';
 import LyricsPlayer from '../../components/LyricsPlayer';
 import RatingSlider from '../../components/RatingSlider';
@@ -14,8 +13,6 @@ export default function GeneratePage() {
   // -- State variables --
   const [step, setStep] = useState<GenerationStep>('ideas');
   const [moodHint, setMoodHint] = useState('');
-  const [concepts, setConcepts] = useState<Concept[]>([]);
-  const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
   
   // Generating state
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -34,13 +31,8 @@ export default function GeneratePage() {
       const nextSong = queue[0];
       setQueue(queue.slice(1));
       
-      // Update current song with next song's details but keep mock audio/cover for demo if missing
-      setSong(prev => prev ? {
-        ...prev,
-        ...nextSong,
-        audio_url: nextSong.audio_url || prev.audio_url,
-        cover_url: nextSong.cover_url || prev.cover_url
-      } : nextSong);
+      // Update current song with next song's details
+      setSong(nextSong);
       
       setShowRating(false);
       triggerBackgroundGeneration();
@@ -51,15 +43,13 @@ export default function GeneratePage() {
     fetch('/api/generate/queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mixType: moodHint ? 'Custom Vibe' : 'Default Mix', vibePrompt: moodHint })
+      body: JSON.stringify({ moodHint })
     }).catch(console.error);
   };
 
   // Generate functions
   const handleDefaultMix = () => {
-    const concept = { title: 'Default Mix', genre: 'Mixed', secondary_genre: null, mood: 'Profile Based', bpm: 120, key_instruments: [], structure_hint: '', why: '' };
-    setSelectedConcept(concept);
-    runGenerationSequence(concept);
+    runGenerationSequence();
   };
 
   const handleCustomVibe = () => {
@@ -67,12 +57,10 @@ export default function GeneratePage() {
       alert("Please enter a vibe first!");
       return;
     }
-    const concept = { title: 'Custom Vibe', genre: 'Mixed', secondary_genre: null, mood: moodHint, bpm: 120, key_instruments: [], structure_hint: '', why: '' };
-    setSelectedConcept(concept);
-    runGenerationSequence(concept);
+    runGenerationSequence(moodHint);
   };
 
-  const runGenerationSequence = async (concept: Concept) => {
+  const runGenerationSequence = async (vibe?: string) => {
     setStep('prompting');
     setCompletedSteps(['Profile analyzed', 'Concept selected']);
     setCurrentStepText('Loading Feed...');
@@ -82,7 +70,7 @@ export default function GeneratePage() {
       const response = await fetch('/api/generate/music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept })
+        body: JSON.stringify({ moodHint: vibe })
       });
       
       if (!response.ok) {

@@ -43,8 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const mixType = body.mixType || 'Default Mix'; // 'Default Mix' or 'Custom Vibe'
-    const vibePrompt = body.vibePrompt || '';
+    const moodHint = body.moodHint || '';
 
     const supabase = getSupabaseAdmin();
 
@@ -63,8 +62,8 @@ export async function POST(req: NextRequest) {
 
     // 2. Generate 9 concepts via Flash
     let userPromptIdeas = `Sound Profile: ${JSON.stringify(sound_profile)}`;
-    if (mixType === 'Custom Vibe' && vibePrompt) {
-        userPromptIdeas += `\n\nGenerate concepts tailored to this specific vibe/mood hint: "${vibePrompt}". Still keep the user's general sound profile in mind, but heavily lean into the requested vibe.`;
+    if (moodHint) {
+        userPromptIdeas += `\n\nGenerate concepts tailored to this specific vibe/mood hint: "${moodHint}". Still keep the user's general sound profile in mind, but heavily lean into the requested vibe.`;
     }
     
     const ideasResponse = await ai.models.generateContent({
@@ -100,7 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Check for resurface=true
-    if (mixType === 'Default Mix') {
+    if (!moodHint) {
       const { data: resurfaceData } = await supabase
         .from('songs')
         .select('*')
@@ -213,7 +212,7 @@ export async function POST(req: NextRequest) {
         genre: concept.genre,
         mood: concept.mood,
         bpm: concept.bpm,
-        vibe: mixType === 'Custom Vibe' ? vibePrompt : concept.mood,
+        vibe: moodHint ? moodHint : concept.mood,
         lyria_prompt: lyria_prompt,
         lyrics: proLyrics.trim(),
         audio_url: audioUrl,

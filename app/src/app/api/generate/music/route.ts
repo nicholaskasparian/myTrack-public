@@ -25,29 +25,36 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const concept = body.concept;
-    let sound_profile = body.sound_profile;
+    let concept = body.concept;
+    const moodHint = body.moodHint;
+
+    if (!concept) {
+      concept = {
+        title: moodHint ? 'Custom Vibe' : 'Default Mix',
+        genre: 'Mixed',
+        secondary_genre: null,
+        mood: moodHint || 'Profile Based',
+        bpm: 120,
+        key_instruments: [],
+        structure_hint: '',
+        why: moodHint ? 'Generated from custom vibe' : 'Default profile mix'
+      };
+    }
 
     const supabase = getSupabaseAdmin();
 
-    if (!sound_profile) {
-      const { data: profileData, error: profileError } = await supabase
-        .from('sound_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    const { data: profileData, error: profileError } = await supabase
+      .from('sound_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-      if (profileError || !profileData) {
-        console.error('Error fetching sound profile:', profileError);
-        // Fallback to a default if absolutely necessary, but preferably fail gracefully
-        return NextResponse.json({ error: 'Sound profile not found' }, { status: 404 });
-      }
-      sound_profile = profileData;
+    if (profileError || !profileData) {
+      console.error('Error fetching sound profile:', profileError);
+      return NextResponse.json({ error: 'Sound profile not found' }, { status: 404 });
     }
-
-    if (!concept) {
-      return NextResponse.json({ error: 'Missing concept parameter' }, { status: 400 });
-    }
+    
+    const sound_profile = profileData;
 
     // Stage 2: Prompt & Lyrics Generation via Gemini Pro
     const promptResponse = await ai.models.generateContent({
