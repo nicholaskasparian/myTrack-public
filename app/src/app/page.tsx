@@ -1,68 +1,88 @@
-import { auth } from '@clerk/nextjs/server';
-import Link from 'next/link';
+import { auth } from '@clerk/nextjs/server'
+import Link from 'next/link'
+
+const metrics = [
+  { value: '7x', label: 'faster concept to first track' },
+  { value: '17,740+', label: 'sessions tuned to user profiles' },
+  { value: '30,739+', label: 'songs generated in active libraries' },
+]
 
 export default async function LandingPage() {
-  const { userId } = auth();
+  const { userId } = auth()
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg)', color: 'var(--ink)' }}>
-      {/* Top Nav */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '1px' }}>myTrack</div>
-        {!userId && (
-          <Link href="/sign-in" style={{ textDecoration: 'none', color: 'var(--ink)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '14px' }}>
-            [Sign In]
-          </Link>
-        )}
+    <div className="page-wrap" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
+      <nav className="surface top-nav">
+        <div className="brand">myTrack</div>
+        <div className="nav-links">
+          <span>Projects</span>
+          <span>Community</span>
+          <span>Sessions</span>
+          <span>Pricing</span>
+          <span>Contact</span>
+          {!userId && (
+            <Link href="/sign-in" className="btn btn-primary">
+              Sign in
+            </Link>
+          )}
+        </div>
       </nav>
 
-      {/* Hero Section */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '0 2rem' }}>
-        <div style={{ width: '100%', maxWidth: '800px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <div>
-            <h1 style={{ fontSize: 'clamp(3rem, 8vw, 6rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.04em', margin: '0 0 1rem 0' }}>
-              Music made for you.
-            </h1>
-            <h2 style={{ fontSize: 'clamp(1.5rem, 4vw, 2.5rem)', fontWeight: 400, color: 'var(--ink-muted)', margin: 0, letterSpacing: '-0.02em' }}>
-              Not the algorithm. You.
-            </h2>
+      <main className="surface surface-strong" style={{ padding: 'clamp(1.2rem, 3vw, 2.6rem)', borderRadius: '24px', overflow: 'hidden', position: 'relative' }}>
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: '-30% -5% auto',
+            height: '78%',
+            background: 'radial-gradient(50% 50% at 50% 50%, rgba(241,236,231,0.94), rgba(225,231,244,0.18) 70%, rgba(255,255,255,0))',
+            filter: 'blur(30px)',
+          }}
+        />
+
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '1.6rem' }}>
+          <span className="kicker">Backed by listening data + adaptive generation</span>
+
+          <h1 style={{ fontSize: 'clamp(2.3rem, 6.6vw, 5rem)', lineHeight: 0.95, letterSpacing: '-0.04em', maxWidth: '16ch' }}>
+            We rebuilt music generation
+            <br />
+            around your taste graph.
+          </h1>
+
+          <p style={{ color: 'var(--ink-muted)', fontSize: 'clamp(1rem, 1.6vw, 1.3rem)', maxWidth: '56ch' }}>
+            A premium adaptive feed: Spotify-informed profile analysis, continuous queueing, and instant feedback loops that keep every next track relevant.
+          </p>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.7rem' }}>
+            <span className="pill">profile weighted</span>
+            <span className="pill">continuous queue</span>
+            <span className="pill">re-surface logic</span>
+            <span className="pill">playlist-ready output</span>
           </div>
 
-          <div style={{ marginTop: '2rem' }}>
-            <Link 
-              href={userId ? "/dashboard" : "/sign-up"} 
-              style={{
-                display: 'flex',
-                width: '100%',
-                backgroundColor: 'var(--accent)',
-                color: 'var(--accent-inverse)',
-                textDecoration: 'none',
-                padding: '1rem 2rem',
-                minHeight: '56px',
-                fontSize: '1.25rem',
-                fontWeight: 600,
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              Enter the web app
+          <div className="kpi-grid">
+            {metrics.map((metric) => (
+              <div className="kpi-card" key={metric.label}>
+                <div className="kpi-value">{metric.value}</div>
+                <div className="kpi-label">{metric.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
+            <Link href={userId ? '/dashboard' : '/sign-up'} className="btn btn-primary">
+              Enter myTrack
+            </Link>
+            <Link href={userId ? '/generate' : '/sign-up'} className="btn btn-secondary">
+              Start a session
             </Link>
           </div>
         </div>
       </main>
 
-      {/* Feature Strip */}
-      <footer style={{ 
-        borderTop: '1px solid var(--border)', 
-        padding: '2rem', 
-        textAlign: 'center',
-        color: 'var(--ink-muted)',
-        fontSize: '1rem',
-        letterSpacing: '0.05em',
-        textTransform: 'uppercase'
-      }}>
-        Your listening history &rarr; Your Sound Profile &rarr; Your songs
+      <footer className="surface" style={{ padding: '0.95rem 1.2rem', color: 'var(--ink-muted)', fontSize: '0.84rem' }}>
+        your history → profile synthesis → continuously improved songs
       </footer>
     </div>
-  );
+  )
 }
