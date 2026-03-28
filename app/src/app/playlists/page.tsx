@@ -62,6 +62,7 @@ export default function PlaylistsPage() {
         <div className="nav-links">
           <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
           <Link href="/library" className="btn btn-secondary">Library</Link>
+          <Link href="/metrics" className="btn btn-secondary">Metrics</Link>
           <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">+ New playlist</button>
         </div>
       </nav>

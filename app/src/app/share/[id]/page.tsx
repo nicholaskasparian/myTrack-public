@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getSupabaseAdmin } from '../../../lib/supabase'
 import AudioPlayer from '../../../components/AudioPlayer'
 import Link from 'next/link'
+import type { Song } from '../../../lib/types'
 
 export default async function SharePage({ params }: { params: { id: string } }) {
   const supabase = getSupabaseAdmin()
@@ -10,6 +11,12 @@ export default async function SharePage({ params }: { params: { id: string } }) 
   const { data: song, error } = await supabase.from('songs').select('*').eq('id', params.id).eq('is_public', true).single()
 
   if (error || !song) notFound()
+
+  const statsRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/songs/${params.id}/stats`, {
+    cache: 'no-store',
+  }).catch(() => null)
+  const stats = statsRes && statsRes.ok ? await statsRes.json() : null
+  const relatedSongs: Song[] = stats?.related_songs || []
 
   return (
     <div className="page-wrap" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -35,9 +42,26 @@ export default async function SharePage({ params }: { params: { id: string } }) 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
               {song.genre && <span className="tag">{song.genre}</span>}
               {song.bpm && <span className="tag">{song.bpm} BPM</span>}
+              <span className="tag">{stats?.play_count ?? song.play_count ?? 0} plays</span>
+              <span className="tag">
+                {typeof stats?.avg_rating === 'number' ? `${stats.avg_rating}/10 avg` : song.rating ? `${song.rating}/10` : 'Unrated'}
+              </span>
             </div>
             {song.vibe && <p style={{ fontStyle: 'italic', color: 'var(--ink-muted)' }}>"{song.vibe}"</p>}
-            {song.audio_url ? <AudioPlayer src={song.audio_url} /> : <div className="notice">Audio not available yet.</div>}
+            {song.audio_url ? (
+              <AudioPlayer
+                src={song.audio_url}
+                onPlay={async () => {
+                  await fetch('/api/share/play', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ songId: song.id }),
+                  }).catch(() => null)
+                }}
+              />
+            ) : (
+              <div className="notice">Audio not available yet.</div>
+            )}
           </div>
         </div>
 
@@ -59,6 +83,30 @@ export default async function SharePage({ params }: { params: { id: string } }) 
             </details>
           )}
         </div>
+
+        {relatedSongs.length > 0 && (
+          <section className="panel" style={{ background: 'rgba(255,255,255,0.66)' }}>
+            <div className="panel-header">
+              <h2 className="section-title" style={{ marginBottom: 0 }}>You may also like</h2>
+              <span className="tag">Similar vibe</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+              {relatedSongs.slice(0, 4).map((related) => (
+                <Link key={related.id} href={`/share/${related.id}`} className="panel" style={{ padding: '0.65rem', background: 'rgba(255,255,255,0.7)' }}>
+                  <div style={{ width: '100%', aspectRatio: '1', borderRadius: '10px', overflow: 'hidden', background: 'var(--bg-deep)', marginBottom: '0.5rem' }}>
+                    {related.cover_url && (
+                      <img src={related.cover_url} alt={related.title || 'Song cover'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                  </div>
+                  <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>{related.title || 'Untitled'}</div>
+                  <div style={{ color: 'var(--ink-muted)', fontSize: '0.78rem' }}>
+                    {related.genre || 'Genreless'} {related.bpm ? `• ${related.bpm} BPM` : ''}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <footer style={{ textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.84rem' }}>
           Made with <strong>myTrack</strong> —{' '}

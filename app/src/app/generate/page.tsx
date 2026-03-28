@@ -30,6 +30,14 @@ export default function GeneratePage() {
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [inputError, setInputError] = useState<string | null>(null)
   const [loadingPulse, setLoadingPulse] = useState(0)
+  const [queueStatusMessage, setQueueStatusMessage] = useState<string | null>(null)
+  const [currentGenerationTiming, setCurrentGenerationTiming] = useState<{
+    prompt_ms: number
+    music_ms: number
+    cover_ms: number
+    upload_ms: number
+    total_ms: number
+  } | null>(null)
 
   useEffect(() => {
     if (!['prompting', 'lyria', 'cover', 'uploading'].includes(step)) return
@@ -89,6 +97,15 @@ export default function GeneratePage() {
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
         throw new Error(err.error || `Failed to generate queue (status: ${response.status}). Please try again.`)
+      }
+      const queueData = await response.json().catch(() => ({}))
+      if (queueData?.summary?.generated > 0) {
+        const avgMs = queueData?.summary?.avg_total_ms
+        setQueueStatusMessage(
+          avgMs
+            ? `Queued ${queueData.summary.generated} new track(s) • avg ${Math.round(avgMs / 1000)}s generation`
+            : `Queued ${queueData.summary.generated} new track(s)`
+        )
       }
       return true
     } catch (err) {
@@ -183,6 +200,9 @@ export default function GeneratePage() {
       const data = await response.json()
       setStep('done')
       setSong(data.song)
+      if (data.song?.generation_timing) {
+        setCurrentGenerationTiming(data.song.generation_timing)
+      }
       tryStartBackgroundGeneration()
     } catch (error: any) {
       console.error('Error generating:', error)
@@ -309,6 +329,21 @@ export default function GeneratePage() {
 
       {step === 'done' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {currentGenerationTiming && (
+            <section className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', background: 'rgba(255,255,255,0.72)' }}>
+              <div className="panel-header">
+                <h3 className="section-title" style={{ marginBottom: 0 }}>Generation timing</h3>
+                <span className="tag">{Math.round(currentGenerationTiming.total_ms / 1000)}s total</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.55rem' }}>
+                <div className="notice">Prompt: {Math.round(currentGenerationTiming.prompt_ms / 1000)}s</div>
+                <div className="notice">Music: {Math.round(currentGenerationTiming.music_ms / 1000)}s</div>
+                <div className="notice">Cover: {Math.round(currentGenerationTiming.cover_ms / 1000)}s</div>
+                <div className="notice">Upload: {Math.round(currentGenerationTiming.upload_ms / 1000)}s</div>
+              </div>
+            </section>
+          )}
+
           <FullscreenPlayer
             key={song?.id || (isWaitingForQueueStart ? 'waiting' : 'idle')}
             song={song}
@@ -326,6 +361,7 @@ export default function GeneratePage() {
             <h3 className="section-title">Up next</h3>
             <div className="song-list">
               {queue.length === 0 && isQueueGenerating && <div className="notice">Generating next tracks...</div>}
+              {queueStatusMessage && <div className="notice">{queueStatusMessage}</div>}
               {queue.map((qSong) => (
                 <div key={qSong.id} className="panel" style={{ background: 'rgba(255,255,255,0.66)', display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.6rem' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: 'var(--bg-deep)', overflow: 'hidden' }}>

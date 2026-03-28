@@ -44,6 +44,7 @@ Return:
 
 export async function POST(req: NextRequest) {
   try {
+    const requestStartedAt = Date.now();
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     if (neededCount <= 0) {
         console.log(`[QueueMusic] Queue already full (${queueCount} songs). Skipping generation.`);
-        return NextResponse.json({ queued: 0 });
+        return NextResponse.json({ queued: 0, summary: { generated: 0 } });
     }
 
     const sound_profile = profileData as SoundProfile;
@@ -144,12 +145,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. For each of the needed concepts: call prompt, music, cover generation in parallel
+    const trackTimings: Array<{ total_ms: number }> = [];
     const generateTrack = async (concept: Concept, position: number) => {
       try {
+        const trackStartedAt = Date.now();
         const songId = nanoid();
         console.log(`[QueueMusic] Generating track: ${concept.title}`);
 
         // a. Prompt & Lyrics Generation
+        const promptStartedAt = Date.now();
         const promptResponse = await ai.models.generateContent({
           model: MODELS.PRO,
           contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
@@ -177,6 +181,7 @@ export async function POST(req: NextRequest) {
         }
         
         const { lyrics: proLyrics = "", lyria_prompt = "" } = parsedResponse;
+        const promptMs = Date.now() - promptStartedAt;
 
         if (!proLyrics || !lyria_prompt) {
           throw new Error('Failed to generate lyrics or prompt for queue track');
@@ -185,6 +190,7 @@ export async function POST(req: NextRequest) {
         // b. Music & Cover in Parallel
         const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
 
+        const mediaStartedAt = Date.now();
         const [musicResponse, coverResponse] = await Promise.all([
           ai.models.generateContent({
             model: MODELS.LYRIA,
@@ -204,6 +210,7 @@ export async function POST(req: NextRequest) {
             contents: coverPrompt,
           })
         ]);
+        const mediaMs = Date.now() - mediaStartedAt;
 
 
         // Extract Music
@@ -251,6 +258,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Upload files
+        const uploadStartedAt = Date.now();
         let audioUrl = null;
         if (audioBuffer) {
           const { error: auErr } = await supabase.storage
@@ -272,6 +280,10 @@ export async function POST(req: NextRequest) {
             coverUrl = uData.publicUrl;
           }
         }
+        const uploadMs = Date.now() - uploadStartedAt;
+        const totalMs = Date.now() - trackStartedAt;
+        const coverMs = Math.max(0, mediaMs - (mediaMs > 0 ? Math.round(mediaMs * 0.82) : 0));
+        const musicMs = Math.max(0, mediaMs - coverMs);
 
         // 5. Store with status='queued'
         const newSong: Partial<Song> = {
@@ -293,9 +305,18 @@ export async function POST(req: NextRequest) {
           is_public: false,
           play_count: 0,
           resurface: false,
+          generation_timing: {
+            started_at: new Date(trackStartedAt).toISOString(),
+            prompt_ms: promptMs,
+            music_ms: musicMs,
+            cover_ms: coverMs,
+            upload_ms: uploadMs,
+            total_ms: totalMs,
+          },
         };
 
         await supabase.from('songs').insert([newSong]);
+        trackTimings.push({ total_ms: totalMs });
         console.log(`[QueueMusic] Finished track ${position}`);
       } catch (err) {
         console.error(`[QueueMusic] Failed to generate track:`, err);
@@ -307,7 +328,20 @@ export async function POST(req: NextRequest) {
         await generateTrack(selectedConcepts[i], (queueCount || 0) + i + 1);
     }
 
-    return NextResponse.json({ queued: selectedConcepts.length });
+    const generatedCount = trackTimings.length;
+    const avgTotalMs =
+      generatedCount > 0
+        ? Math.round(trackTimings.reduce((sum, t) => sum + t.total_ms, 0) / generatedCount)
+        : null;
+
+    return NextResponse.json({
+      queued: selectedConcepts.length,
+      summary: {
+        generated: generatedCount,
+        avg_total_ms: avgTotalMs,
+        total_request_ms: Date.now() - requestStartedAt,
+      },
+    });
 
   } catch (error: any) {
     console.error('Error generating queue:', error);

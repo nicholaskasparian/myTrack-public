@@ -26,6 +26,7 @@ export const maxDuration = 300; // Vercel timeout increased for long music gen
 
 export async function POST(req: NextRequest) {
   try {
+    const requestStartedAt = Date.now();
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     // Stage 2: Prompt & Lyrics Generation via Gemini Pro
     console.log('[GenerateMusic] Stage 2: Generating prompt and lyrics...');
+    const promptStartedAt = Date.now();
     const promptResponse = await ai.models.generateContent({
       model: MODELS.PRO,
       contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate prompt or lyrics format' }, { status: 500 });
     }
     const { lyrics: proLyrics = "", lyria_prompt = "" } = parsedResponse;
+    const promptMs = Date.now() - promptStartedAt;
 
     if (!proLyrics || !lyria_prompt) {
       return NextResponse.json({ error: 'Failed to generate prompt or lyrics content' }, { status: 500 });
@@ -104,6 +107,7 @@ export async function POST(req: NextRequest) {
     console.log('[GenerateMusic] Stage 3: Generating music...');
     
     let musicResponse;
+    const musicStartedAt = Date.now();
     try {
       musicResponse = await ai.models.generateContent({
         model: MODELS.LYRIA,
@@ -122,12 +126,14 @@ export async function POST(req: NextRequest) {
       console.error('[GenerateMusic] Lyria API Error:', musicErr);
       return NextResponse.json({ error: `Music generation failed: ${musicErr.message || 'Unknown error'}` }, { status: 500 });
     }
+    const musicMs = Date.now() - musicStartedAt;
 
 
     console.log('[GenerateMusic] Stage 4: Generating cover art...');
     const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
 
     let coverResponse;
+    const coverStartedAt = Date.now();
     try {
       coverResponse = await ai.models.generateContent({
         model: MODELS.NANO_BANANA,
@@ -137,6 +143,7 @@ export async function POST(req: NextRequest) {
       console.warn('[GenerateMusic] Cover generation failed, using placeholder', coverErr);
       // We can continue without a cover
     }
+    const coverMs = Date.now() - coverStartedAt;
 
     let audioBuffer: Buffer | null = null;
     let lyriaLyrics = '';
@@ -208,6 +215,7 @@ export async function POST(req: NextRequest) {
     const songId = nanoid();
 
     console.log('[GenerateMusic] Uploading assets to Supabase...');
+    const uploadStartedAt = Date.now();
     const { error: uploadError } = await supabase.storage
       .from('audio')
       .upload(`${userId}/${songId}.mp3`, audioBuffer, {
@@ -233,6 +241,8 @@ export async function POST(req: NextRequest) {
         coverUrl = cUrlData.publicUrl;
       }
     }
+    const uploadMs = Date.now() - uploadStartedAt;
+    const totalMs = Date.now() - requestStartedAt;
 
     console.log('[GenerateMusic] Saving song to database...');
     const newSong = {
@@ -265,7 +275,19 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[GenerateMusic] Success!');
-    return NextResponse.json({ song: newSong });
+    return NextResponse.json({
+      song: {
+        ...newSong,
+        generation_timing: {
+          started_at: new Date(requestStartedAt).toISOString(),
+          prompt_ms: promptMs,
+          music_ms: musicMs,
+          cover_ms: coverMs,
+          upload_ms: uploadMs,
+          total_ms: totalMs,
+        },
+      },
+    });
 
   } catch (error: any) {
     console.error('Error generating music:', error);

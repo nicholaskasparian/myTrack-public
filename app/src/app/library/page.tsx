@@ -190,6 +190,7 @@ export default function LibraryPage() {
         <div className="nav-links">
           <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
           <Link href="/playlists" className="btn btn-secondary">Playlists</Link>
+          <Link href="/metrics" className="btn btn-secondary">Metrics</Link>
           <Link href="/generate" className="btn btn-primary">Generate</Link>
         </div>
       </nav>

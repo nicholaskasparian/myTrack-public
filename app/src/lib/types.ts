@@ -107,6 +107,22 @@ export interface SongRating {
   rated_at: string;
 }
 
+export interface GenerationTiming {
+  started_at: string;
+  prompt_ms: number;
+  music_ms: number;
+  cover_ms: number;
+  upload_ms: number;
+  total_ms: number;
+}
+
+export interface SongStats {
+  play_count: number;
+  avg_rating: number | null;
+  ratings_count: number;
+  related_songs: Song[];
+}
+
 // ─── Generation State Machine (PRD §6.6, §15) ─────────────────────────
 
 export type GenerationStep =

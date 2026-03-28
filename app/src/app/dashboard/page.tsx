@@ -79,6 +79,7 @@ export default function DashboardPage() {
         <div className="nav-links" style={{ alignItems: 'center' }}>
           <Link href="/library" className="btn btn-secondary">Library</Link>
           <Link href="/playlists" className="btn btn-secondary">Playlists</Link>
+          <Link href="/metrics" className="btn btn-secondary">Metrics</Link>
           <button onClick={fetchProfile} className="btn btn-ghost">Sync profile</button>
           <UserButton appearance={{ elements: { avatarBox: { borderRadius: '999px' } } }} />
         </div>
