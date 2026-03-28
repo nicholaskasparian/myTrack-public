@@ -7,13 +7,16 @@ import { nanoid } from 'nanoid';
 
 const SYSTEM_INSTRUCTION_PROMPT = `You are a creative director and expert prompt engineer. Given a song concept and a user's Sound Profile, write the complete lyrics and a single Lyria generation prompt that will produce a high-quality, personalized music track.
 
-Generate lyrics with precise [mm:ss.xx] timing markers for every line. Align markers with the song's BPM and structure (e.g., Intro ends at 00:15, Verse 1 starts at 00:16). Output should be a valid LRC string.
+For the lyrics:
+- Structure the song with section tags like [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro].
+- For each section, add a [mm:ss] start timestamp (e.g., [0:00] for Intro, [0:15] for Verse 1). This helps the model time the vocals correctly.
+- Aim for a total song length of approximately 2 to 3 minutes.
 
 Respond ONLY with valid JSON — no markdown, no preamble.
 
 Return:
 {
-  "lyrics": "Valid LRC string with precise [mm:ss.xx] timing markers for every line",
+  "lyrics": "Lyrics with [mm:ss] timestamps for each section",
   "lyria_prompt": "80-150 word technical description of the music. Start with the primary genre and tempo. Describe instrumentation concretely. Specify mood and energy arc. Include production style cues. Integrate themes from the lyrics."
 }`;
 
@@ -92,17 +95,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate prompt or lyrics content' }, { status: 500 });
     }
 
-    // Strip LRC timing markers for Stage 3 generation to avoid confusing Lyria
-    const plainLyrics = proLyrics.replace(/\[\d{2}:\d{2}\.\d{2}\]/g, '').trim();
+    // Use full proLyrics which now includes structure tags and timestamps Lyria likes
+    const generationLyrics = proLyrics.trim();
 
     // Stage 3: Music and Cover Generation
-    console.log('[GenerateMusic] Stage 3: Generating music and cover art...');
-    const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
-
-    const [musicResponse, coverResponse] = await Promise.all([
-      ai.models.generateContent({
+    console.log('[GenerateMusic] Stage 3: Generating music...');
+    
+    let musicResponse;
+    try {
+      musicResponse = await ai.models.generateContent({
         model: MODELS.LYRIA,
-        contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics:\n${plainLyrics}`,
+        contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${generationLyrics}`,
         config: {
           responseModalities: ["AUDIO", "TEXT"],
           safetySettings: [
@@ -112,12 +115,26 @@ export async function POST(req: NextRequest) {
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           ]
         },
-      }),
-      ai.models.generateContent({
+      });
+    } catch (musicErr: any) {
+      console.error('[GenerateMusic] Lyria API Error:', musicErr);
+      return NextResponse.json({ error: `Music generation failed: ${musicErr.message || 'Unknown error'}` }, { status: 500 });
+    }
+
+
+    console.log('[GenerateMusic] Stage 4: Generating cover art...');
+    const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
+
+    let coverResponse;
+    try {
+      coverResponse = await ai.models.generateContent({
         model: MODELS.NANO_BANANA,
         contents: coverPrompt,
-      })
-    ]);
+      });
+    } catch (coverErr) {
+      console.warn('[GenerateMusic] Cover generation failed, using placeholder', coverErr);
+      // We can continue without a cover
+    }
 
     let audioBuffer: Buffer | null = null;
     let lyriaLyrics = '';
@@ -134,7 +151,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
-      return NextResponse.json({ error: `Model failed to finish: ${candidate.finishReason}` }, { status: 500 });
+      console.error('[GenerateMusic] Model failed to finish. Reason:', candidate.finishReason, 'Feedback:', musicResponse.promptFeedback);
+      return NextResponse.json({ 
+        error: `Model failed to finish: ${candidate.finishReason}. This often happens with complex musical prompts. Try a different vibe.` 
+      }, { status: 500 });
     }
 
     if (candidate.content && candidate.content.parts) {
@@ -172,7 +192,7 @@ export async function POST(req: NextRequest) {
     let imageBuffer: Buffer | null = null;
     let imageExt = 'jpg';
     let imageMime = 'image/jpeg';
-    const cCandidate = coverResponse.candidates?.[0];
+    const cCandidate = coverResponse?.candidates?.[0];
     if (cCandidate?.content?.parts) {
       for (const part of cCandidate.content.parts) {
         if (part.inlineData && part.inlineData.mimeType?.startsWith('image/') && part.inlineData.data) {
@@ -222,7 +242,7 @@ export async function POST(req: NextRequest) {
       bpm: concept.bpm,
       vibe: concept.mood,
       lyria_prompt: lyria_prompt,
-      lyrics: proLyrics.trim(),
+      lyrics: lyriaLyrics.trim() || proLyrics.trim(), // Prefer lyrics generated by the music model
       audio_url: audioUrl,
       cover_url: coverUrl,
       status: 'ready',

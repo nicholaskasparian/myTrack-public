@@ -27,13 +27,16 @@ Return:
 
 const SYSTEM_INSTRUCTION_PROMPT = `You are a creative director and expert prompt engineer. Given a song concept and a user's Sound Profile, write the complete lyrics and a single Lyria generation prompt that will produce a high-quality, personalized music track.
 
-Generate lyrics with precise [mm:ss.xx] timing markers for every line. Align markers with the song's BPM and structure (e.g., Intro ends at 00:15, Verse 1 starts at 00:16). Output should be a valid LRC string.
+For the lyrics:
+- Structure the song with section tags like [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro].
+- For each section, add a [mm:ss] start timestamp (e.g., [0:00] for Intro, [0:15] for Verse 1). This helps the model time the vocals correctly.
+- Aim for a total song length of approximately 2 to 3 minutes.
 
 Respond ONLY with valid JSON — no markdown, no preamble.
 
 Return:
 {
-  "lyrics": "Valid LRC string with precise [mm:ss.xx] timing markers for every line",
+  "lyrics": "Lyrics with [mm:ss] timestamps for each section",
   "lyria_prompt": "80-150 word technical description of the music. Start with the primary genre and tempo. Describe instrumentation concretely. Specify mood and energy arc. Include production style cues. Integrate themes from the lyrics."
 }`;
 
@@ -160,16 +163,13 @@ export async function POST(req: NextRequest) {
           throw new Error('Failed to generate lyrics or prompt for queue track');
         }
 
-        // Strip LRC timing markers for Stage 3 generation
-        const plainLyrics = proLyrics.replace(/\[\d{2}:\d{2}\.\d{2}\]/g, '').trim();
-
         // b. Music & Cover in Parallel
         const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
 
         const [musicResponse, coverResponse] = await Promise.all([
           ai.models.generateContent({
             model: MODELS.LYRIA,
-            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics:\n${plainLyrics}`,
+            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${proLyrics}`,
             config: { 
               responseModalities: ["AUDIO", "TEXT"],
               safetySettings: [
@@ -185,6 +185,7 @@ export async function POST(req: NextRequest) {
             contents: coverPrompt,
           })
         ]);
+
 
         // Extract Music
         let audioBuffer: Buffer | null = null;
@@ -263,7 +264,7 @@ export async function POST(req: NextRequest) {
           bpm: concept.bpm,
           vibe: moodHint ? moodHint : concept.mood,
           lyria_prompt: lyria_prompt,
-          lyrics: proLyrics.trim(),
+          lyrics: lyriaLyrics.trim() || proLyrics.trim(),
           audio_url: audioUrl,
           cover_url: coverUrl,
           status: 'ready',

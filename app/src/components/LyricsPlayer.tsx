@@ -6,31 +6,70 @@ import type { Song } from '../lib/types';
 function parseLRC(lrcText: string) {
   const lines = lrcText.split('\n');
   const parsed: { time: number; text: string }[] = [];
-  const regex = /\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)/;
+  
+  // Standard LRC: [00:12.34] or [01:02]
+  const lrcRegex = /\[(\d+):(\d+(?:\.\d+)?)\](.*)/;
+  // Lyria/Timestamp format: [0:00 - 0:10] or [00:00]
+  const timestampRegex = /\[(\d+):(\d+)(?:\s*-\s*\d+:\d+)?\](.*)/;
   
   let hasTags = false;
+  let lastTime = 0;
+
   for (const line of lines) {
-    const match = regex.exec(line);
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let match = lrcRegex.exec(trimmed);
     if (match) {
       hasTags = true;
       const minutes = parseInt(match[1], 10);
       const seconds = parseFloat(match[2]);
       const text = match[3].trim();
-      parsed.push({ time: minutes * 60 + seconds, text });
+      lastTime = minutes * 60 + seconds;
+      parsed.push({ time: lastTime, text: text || '♪' });
+      continue;
+    }
+
+    match = timestampRegex.exec(trimmed);
+    if (match) {
+      hasTags = true;
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const text = match[3].trim();
+      lastTime = minutes * 60 + seconds;
+      parsed.push({ time: lastTime, text: text || '♪' });
+      continue;
+    }
+
+    // If no match but we have tags, this is a continuation of the previous timestamp
+    if (hasTags) {
+      parsed.push({ time: lastTime, text: trimmed });
     }
   }
 
   // Fallback if no tags are present
   if (!hasTags) {
     return lines
-      .filter(line => line.trim().length > 0)
+      .map(l => l.trim())
+      .filter(line => line.length > 0)
       .map((line) => ({
         time: 0,
-        text: line.trim()
+        text: line
       }));
   }
 
-  return parsed;
+  // Group lines with same timestamp to avoid overlapping
+  const grouped: { time: number; text: string }[] = [];
+  for (const entry of parsed) {
+    const existing = grouped.find(g => g.time === entry.time);
+    if (existing) {
+      existing.text += '\n' + entry.text;
+    } else {
+      grouped.push(entry);
+    }
+  }
+
+  return grouped.sort((a, b) => a.time - b.time);
 }
 
 export default function LyricsPlayer({
