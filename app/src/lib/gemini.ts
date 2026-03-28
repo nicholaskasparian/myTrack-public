@@ -1,5 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 
+// Export safety types for use in routes
+export { HarmCategory, HarmBlockThreshold } from '@google/genai';
+
 // ─── Gemini Client ─────────────────────────────────────────────────────
 // Single client instance for all Gemini API calls
 // Used server-side only in /api/generate/* routes

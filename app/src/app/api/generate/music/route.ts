@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import ai, { MODELS } from '../../../../lib/gemini';
+import ai, { MODELS, HarmCategory, HarmBlockThreshold } from '../../../../lib/gemini';
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { Concept, SoundProfile, Song } from '../../../../lib/types';
 import { nanoid } from 'nanoid';
@@ -106,10 +106,10 @@ export async function POST(req: NextRequest) {
         config: {
           responseModalities: ["AUDIO", "TEXT"],
           safetySettings: [
-            { category: 'HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-            { category: 'HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            { category: HarmCategory.HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           ]
         },
       }),
