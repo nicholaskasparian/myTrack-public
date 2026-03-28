@@ -192,13 +192,18 @@ export default function GeneratePage() {
   }
 
   const handleUpdateVibe = async () => {
+    if (!moodHint.trim()) {
+      setVibeFeedback('Enter a vibe before updating.')
+      return
+    }
     setIsUpdatingVibe(true)
     try {
-      if (!moodHint.trim()) {
-        setVibeFeedback('Enter a vibe before updating.')
-        return
-      }
-      setVibeFeedback('Vibe updated. Upcoming queue tracks will follow this direction.')
+      const started = await tryStartBackgroundGeneration()
+      setVibeFeedback(
+        started
+          ? 'Vibe updated. Next generated tracks will follow this direction.'
+          : 'Vibe saved. Queue generation is already active.'
+      )
     } finally {
       setIsUpdatingVibe(false)
     }

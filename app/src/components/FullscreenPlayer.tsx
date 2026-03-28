@@ -6,6 +6,7 @@ import RatingSlider from './RatingSlider';
 import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
+const LRC_INLINE_PREFIX_TAG = '[:]';
 
 function parseLRC(lrcText: string) {
   const normalizedText = lrcText
@@ -87,7 +88,7 @@ function parseLRC(lrcText: string) {
       .split('\n')
       .map(l => l.trim())
       .filter(l => l.length > 0)
-      .map((line) => (line.startsWith('[:]') ? line.substring(3).trim() : line))
+      .map((line) => (line.startsWith(LRC_INLINE_PREFIX_TAG) ? line.substring(LRC_INLINE_PREFIX_TAG.length).trim() : line))
       .filter((line) => !shouldSkipLyricLine(line))
       .map((line) => ({ time: 0, text: line }));
   }
