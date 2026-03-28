@@ -24,6 +24,8 @@ import { auth } from '@clerk/nextjs/server';
 
 const CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F]/g;
 const MAX_QUERY_LENGTH = 200;
+const MAX_QUERY_TERMS = 6;
+const SAFE_TERM_PATTERN = /[^a-zA-Z0-9- ]/g;
 
 export async function POST(req: NextRequest) {
   try {
@@ -82,10 +84,11 @@ export async function POST(req: NextRequest) {
 
     // Step 2 fallback: text search (works without embedding API or RPC setup)
     const queryTerms = normalizedQuery
+      .replace(SAFE_TERM_PATTERN, '')
       .split(/\s+/)
-      .map((term) => term.trim().replace(/[^a-zA-Z0-9-]/g, ''))
+      .map((term) => term.trim())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, MAX_QUERY_TERMS);
 
     if (queryTerms.length === 0) {
       return NextResponse.json({ results: [] });
