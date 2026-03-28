@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { Song } from '@/lib/types';
+import type { Song } from '../lib/types';
 
 export default function SongCard({ 
   song, 

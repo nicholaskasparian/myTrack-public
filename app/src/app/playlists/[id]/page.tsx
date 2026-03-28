@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
-import AudioPlayer from '@/components/AudioPlayer'
-import { Playlist, PlaylistSong } from '@/lib/types'
+import AudioPlayer from '../../../components/AudioPlayer'
+import { Playlist, PlaylistSong } from '../../../lib/types'
 
 export default function PlaylistDetailPage() {
   const { id } = useParams()

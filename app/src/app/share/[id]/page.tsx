@@ -1,7 +1,7 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import AudioPlayer from '@/components/AudioPlayer';
+import { getSupabaseAdmin } from '../../../lib/supabase';
+import AudioPlayer from '../../../components/AudioPlayer';
 import Link from 'next/link';
 
 export default async function SharePage({ params }: { params: { id: string } }) {
