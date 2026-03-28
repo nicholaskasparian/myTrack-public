@@ -4,6 +4,7 @@ import ai, { MODELS, HarmCategory, HarmBlockThreshold } from '../../../../lib/ge
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { Concept, SoundProfile, Song } from '../../../../lib/types';
 import { nanoid } from 'nanoid';
+import { sanitizeLyrics } from '../../../../lib/lyrics';
 
 export const maxDuration = 300; // Increased timeout for multiple music gens
 
@@ -31,6 +32,7 @@ For the lyrics:
 - Structure the song with section tags like [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro].
 - For each section, add a [mm:ss] start timestamp (e.g., [0:00] for Intro, [0:15] for Verse 1). This helps the model time the vocals correctly.
 - Aim for a total song length of approximately 2 to 3 minutes.
+- Write singable lyric lines only. Do NOT include sound-effect/stage-direction text like "Low hum of analog synths", "SFX", or bracketed production notes.
 
 Respond ONLY with valid JSON — no markdown, no preamble.
 
@@ -186,7 +188,7 @@ export async function POST(req: NextRequest) {
         const [musicResponse, coverResponse] = await Promise.all([
           ai.models.generateContent({
             model: MODELS.LYRIA,
-            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${proLyrics}`,
+            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${sanitizeLyrics(proLyrics)}`,
             config: { 
               responseModalities: ["AUDIO", "TEXT"],
               safetySettings: [
@@ -281,7 +283,7 @@ export async function POST(req: NextRequest) {
           bpm: concept.bpm,
           vibe: moodHint ? moodHint : concept.mood,
           lyria_prompt: lyria_prompt,
-          lyrics: proLyrics.trim() || lyriaLyrics.trim(),
+          lyrics: sanitizeLyrics(proLyrics.trim()) || sanitizeLyrics(lyriaLyrics.trim()),
           audio_url: audioUrl,
           cover_url: coverUrl,
           status: 'queued',

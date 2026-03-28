@@ -8,6 +8,8 @@ import AudioPlayer from '../../components/AudioPlayer'
 import FullscreenPlayer from '../../components/FullscreenPlayer'
 import RatingSlider from '../../components/RatingSlider'
 
+const LOADING_PULSE_DURATION_MS = 420
+
 export default function GeneratePage() {
   const router = useRouter()
 
@@ -31,6 +33,13 @@ export default function GeneratePage() {
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [hasEnded, setHasEnded] = useState(false)
   const [inputError, setInputError] = useState<string | null>(null)
+  const [loadingPulse, setLoadingPulse] = useState(0)
+
+  useEffect(() => {
+    if (!['prompting', 'lyria', 'cover', 'uploading'].includes(step)) return
+    const interval = setInterval(() => setLoadingPulse((prev) => (prev + 1) % 3), LOADING_PULSE_DURATION_MS)
+    return () => clearInterval(interval)
+  }, [step])
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -281,9 +290,33 @@ export default function GeneratePage() {
               <span>{s}</span>
             </div>
           ))}
-          <div className="notice" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '999px', background: 'var(--accent)', boxShadow: '0 0 0 8px rgba(16, 20, 28, 0.1)' }} />
-            {currentStepText}
+          <div className="notice" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 600 }}>
+            <span
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '999px',
+                border: '2px solid var(--accent)',
+                borderTopColor: 'transparent',
+                animation: 'loading-spin 900ms linear infinite',
+              }}
+            />
+            <span>{currentStepText}</span>
+            <span style={{ display: 'inline-flex', gap: '0.18rem' }}>
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: '999px',
+                    background: 'var(--accent)',
+                    opacity: loadingPulse === i ? 1 : 0.2,
+                    transition: 'opacity 160ms ease',
+                  }}
+                />
+              ))}
+            </span>
           </div>
         </section>
       )}

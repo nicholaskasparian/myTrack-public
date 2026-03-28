@@ -4,6 +4,7 @@ import ai, { MODELS, HarmCategory, HarmBlockThreshold } from '../../../../lib/ge
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { Concept, SoundProfile, Song } from '../../../../lib/types';
 import { nanoid } from 'nanoid';
+import { sanitizeLyrics } from '../../../../lib/lyrics';
 
 const SYSTEM_INSTRUCTION_PROMPT = `You are a creative director and expert prompt engineer. Given a song concept and a user's Sound Profile, write the complete lyrics and a single Lyria generation prompt that will produce a high-quality, personalized music track.
 
@@ -11,6 +12,7 @@ For the lyrics:
 - Structure the song with section tags like [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro].
 - For each section, add a [mm:ss] start timestamp (e.g., [0:00] for Intro, [0:15] for Verse 1). This helps the model time the vocals correctly.
 - Aim for a total song length of approximately 2 to 3 minutes.
+- Write singable lyric lines only. Do NOT include sound-effect/stage-direction text like "Low hum of analog synths", "SFX", or bracketed production notes.
 
 Respond ONLY with valid JSON — no markdown, no preamble.
 
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use full proLyrics which now includes structure tags and timestamps Lyria likes
-    const generationLyrics = proLyrics.trim();
+    const generationLyrics = sanitizeLyrics(proLyrics.trim());
 
     // Stage 3: Music and Cover Generation
     console.log('[GenerateMusic] Stage 3: Generating music...');
@@ -242,7 +244,7 @@ export async function POST(req: NextRequest) {
       bpm: concept.bpm,
       vibe: concept.mood,
       lyria_prompt: lyria_prompt,
-      lyrics: proLyrics.trim() || lyriaLyrics.trim(), // Prefer lyrics from Gemini Pro as they are cleaner and better formatted
+      lyrics: generationLyrics || sanitizeLyrics(lyriaLyrics.trim()), // Prefer sanitized Gemini Pro lyrics
       audio_url: audioUrl,
       cover_url: coverUrl,
       status: 'ready',
