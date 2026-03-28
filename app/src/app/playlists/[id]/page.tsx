@@ -269,6 +269,7 @@ export default function PlaylistDetailPage() {
                         onMouseLeave={() => setDragEnabledIdx(null)}
                         className="btn btn-secondary"
                         title="Drag to reorder"
+                        aria-label="Reorder song"
                         style={{ paddingInline: '0.55rem' }}
                       >
                         ↕

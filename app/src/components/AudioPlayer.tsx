@@ -29,7 +29,7 @@ export default function AudioPlayer({
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration)
-      audio.play().catch(() => undefined)
+      audio.play().catch((e) => console.debug('Autoplay prevented:', e))
     }
 
     const handleEnded = () => {

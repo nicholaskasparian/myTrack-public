@@ -29,6 +29,7 @@ export default function GeneratePage() {
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [hasEnded, setHasEnded] = useState(false)
+  const [inputError, setInputError] = useState<string | null>(null)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -203,14 +204,43 @@ export default function GeneratePage() {
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.7rem' }}>
             <button onClick={() => runGenerationSequence()} className="btn btn-primary">Join feed</button>
-            <button onClick={() => moodHint.trim() ? runGenerationSequence(moodHint) : alert('Please enter a vibe first!')} className="btn btn-secondary">
+            <button
+              onClick={() => {
+                if (!moodHint.trim()) {
+                  setInputError('Enter a vibe to launch a custom session.')
+                  return
+                }
+                setInputError(null)
+                runGenerationSequence(moodHint)
+              }}
+              className="btn btn-secondary"
+            >
               Enter custom vibe
             </button>
           </div>
 
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <input className="input" type="text" value={moodHint} onChange={(e) => setMoodHint(e.target.value)} placeholder="e.g. late night drive, focused coding, post-club calm" onKeyDown={(e) => e.key === 'Enter' && (moodHint.trim() ? runGenerationSequence(moodHint) : null)} />
+            <input
+              className="input"
+              type="text"
+              value={moodHint}
+              onChange={(e) => {
+                setMoodHint(e.target.value)
+                if (e.target.value.trim()) setInputError(null)
+              }}
+              placeholder="e.g. late night drive, focused coding, post-club calm"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                if (!moodHint.trim()) {
+                  setInputError('Enter a vibe to launch a custom session.')
+                  return
+                }
+                setInputError(null)
+                runGenerationSequence(moodHint)
+              }}
+            />
           </div>
+          {inputError && <div className="notice error">{inputError}</div>}
         </section>
       )}
 

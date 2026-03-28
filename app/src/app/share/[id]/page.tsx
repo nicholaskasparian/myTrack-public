@@ -36,7 +36,7 @@ export default async function SharePage({ params }: { params: { id: string } }) 
               {song.genre && <span className="tag">{song.genre}</span>}
               {song.bpm && <span className="tag">{song.bpm} BPM</span>}
             </div>
-            {song.vibe && <p style={{ fontStyle: 'italic', color: 'var(--ink-muted)' }}>&quot;{song.vibe}&quot;</p>}
+            {song.vibe && <p style={{ fontStyle: 'italic', color: 'var(--ink-muted)' }}>"{song.vibe}"</p>}
             {song.audio_url ? <AudioPlayer src={song.audio_url} /> : <div className="notice">Audio not available yet.</div>}
           </div>
         </div>

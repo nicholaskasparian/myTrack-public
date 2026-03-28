@@ -15,11 +15,11 @@ export default async function LandingPage() {
       <nav className="surface top-nav">
         <div className="brand">myTrack</div>
         <div className="nav-links">
-          <span>Projects</span>
-          <span>Community</span>
-          <span>Sessions</span>
-          <span>Pricing</span>
-          <span>Contact</span>
+          <Link href="/dashboard" aria-label="Navigate to dashboard">Dashboard</Link>
+          <Link href="/library" aria-label="Navigate to library">Library</Link>
+          <Link href="/generate" aria-label="Navigate to generate">Generate</Link>
+          <Link href="/playlists" aria-label="Navigate to playlists">Playlists</Link>
+          <Link href="/sign-up" aria-label="Navigate to sign up">Sign up</Link>
           {!userId && (
             <Link href="/sign-in" className="btn btn-primary">
               Sign in
