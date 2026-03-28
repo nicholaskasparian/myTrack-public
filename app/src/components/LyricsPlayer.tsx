@@ -53,7 +53,7 @@ export default function LyricsPlayer({
       
       if (scrollRef.current && parsedLyrics.length > 0) {
         // Find the last non-section lyric line at or before current time
-        let targetLine = 0;
+        let targetLine = -1;
         for (let i = 0; i < parsedLyrics.length; i++) {
           if (!parsedLyrics[i].isSection && parsedLyrics[i].time <= audio.currentTime) {
             targetLine = i;
@@ -63,7 +63,7 @@ export default function LyricsPlayer({
         if (targetLine !== lastTargetLineRef.current) {
           lastTargetLineRef.current = targetLine;
           const lineElements = scrollRef.current.children;
-          if (lineElements && lineElements[targetLine]) {
+          if (targetLine >= 0 && lineElements && lineElements[targetLine]) {
             lineElements[targetLine].scrollIntoView({
               behavior: 'smooth',
               block: 'center'
@@ -136,7 +136,7 @@ export default function LyricsPlayer({
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   
   // Active line = last non-section lyric whose timestamp has passed
-  let activeLineIndex = 0;
+  let activeLineIndex = -1;
   for (let i = 0; i < parsedLyrics.length; i++) {
     if (!parsedLyrics[i].isSection && parsedLyrics[i].time <= currentTime) {
       activeLineIndex = i;
