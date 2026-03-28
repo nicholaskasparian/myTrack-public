@@ -5,121 +5,71 @@ import type { Song } from '../lib/types';
 import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
-const LRC_INLINE_PREFIX_TAG = '[:]';
-const ABBREVIATION_CONTEXT_LENGTH = 12;
-const ABBREVIATION_TAIL_PATTERN = /(?:\b[A-Z]\.|(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|vs|etc))\.$/;
 
-function parseLRC(lrcText: string) {
-  const normalizedText = lrcText
-    .replace(/\r\n?/g, '\n')
-    .replace(/\\n/g, '\n');
+type LyricLine = { time: number; text: string; isSection?: boolean };
 
-  // 1. Add newlines before AND after any timestamp tag
-  let text = normalizedText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
-  
-  // 2. Add newlines before AND after Lyria timestamp tags [15.0:]
-  text = text.replace(/(\[\d+(?:\.\d+)?:\])/g, '\n$1\n');
-  
-  // 3. Add newlines before AND after structural tags
-  text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
+// Parse lyrics line-by-line — no destructive pre-replacement that corrupts timestamps.
+// Handles: [mm:ss], [mm:ss.ms], inline [mm:ss] text, Lyria [15.0:], and [Section] tags.
+function parseLRC(lrcText: string): LyricLine[] {
+  const normalized = lrcText.replace(/\r\n?/g, '\n').replace(/\\n/g, '\n');
+  const lines = normalized.split('\n').map(l => l.trim());
 
-  // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
-  // while avoiding common abbreviation/acronym patterns.
-  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
-    const precedingContext = source.slice(Math.max(0, offset - ABBREVIATION_CONTEXT_LENGTH), offset + 1);
-    if (ABBREVIATION_TAIL_PATTERN.test(precedingContext)) return match;
-    return `${punctuation}\n `;
-  });
-  
-  const lines = text.split('\n').map(l => l.trim());
-  
-  const parsed: { time: number; text: string }[] = [];
-  const lrcRegex = /^\[(\d+):(\d+(?:\.\d+)?)\]$/;
-  const timestampRegex = /^\[(\d+):(\d+)(?:\s*-\s*\d+:\d+)?\]$/;
-  const lyriaRegex = /^\[(\d+(?:\.\d+)?):\]$/;
-  const structureRegex = /^\[[a-zA-Z\s0-9]+\]$/;
+  // [mm:ss] or [mm:ss.ms], optionally followed by inline lyric text
+  const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\](.*)$/;
+  // Lyria-style [15.0:] timestamps
+  const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):\](.*)$/;
+  // Section tags: [Chorus], [Verse 1], [Bridge], etc.
+  const sectionRegex = /^\[([A-Za-z][A-Za-z0-9 ]*)\]$/;
+  const metaRegex = /^(music|bpm|duration_secs|good_crop):/i;
 
-  let hasTags = false;
-  let lastTime = 0;
+  const result: LyricLine[] = [];
+  let currentTime = 0;
 
   for (const line of lines) {
-    // Skip Lyria structural tags like [[A0]]
+    if (!line) continue;
+    if (metaRegex.test(line)) continue;
+    // Skip Lyria internal structural tags [[A0]]
     if (/^\[\[.*\]\]$/.test(line)) continue;
-    // Skip mosic, bpm, duration_secs
-    if (/^(mosic|bpm|duration_secs|good_crop):\s*[\d.]+/.test(line)) continue;
 
-    let match = lrcRegex.exec(line);
-    if (match) {
-      hasTags = true;
-      lastTime = parseInt(match[1], 10) * 60 + parseFloat(match[2]);
+    // mm:ss timestamp (with optional inline lyric)
+    const mmssMatch = mmssRegex.exec(line);
+    if (mmssMatch) {
+      currentTime = parseInt(mmssMatch[1], 10) * 60 + parseFloat(mmssMatch[2]);
+      const inline = mmssMatch[3].trim();
+      if (inline && !shouldSkipLyricLine(inline)) {
+        result.push({ time: currentTime, text: inline });
+      }
       continue;
     }
 
-    match = timestampRegex.exec(line);
-    if (match) {
-      hasTags = true;
-      lastTime = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-      continue;
-    }
-    
-    match = lyriaRegex.exec(line);
-    if (match) {
-      hasTags = true;
-      lastTime = parseFloat(match[1]);
+    // Lyria [15.0:] timestamp (with optional inline lyric)
+    const lyriaMatch = lyriaTimeRegex.exec(line);
+    if (lyriaMatch) {
+      currentTime = parseFloat(lyriaMatch[1]);
+      const inline = lyriaMatch[2].trim();
+      if (inline && !shouldSkipLyricLine(inline)) {
+        result.push({ time: currentTime, text: inline });
+      }
       continue;
     }
 
-    if (structureRegex.test(line)) {
-      parsed.push({ time: lastTime, text: line });
+    // Section tag — kept for visual context but excluded from sync logic
+    if (sectionRegex.test(line)) {
+      result.push({ time: currentTime, text: line, isSection: true });
       continue;
     }
 
-    // It's actual lyric text
-    let cleanText = line;
-    if (cleanText.startsWith('[:]')) {
-      cleanText = cleanText.substring(3).trim();
-    }
-    // Drop non-lyric SFX/stage-direction lines from Lyria output
-    if (cleanText !== '' && shouldSkipLyricLine(cleanText)) continue;
-    
-    if (hasTags) {
-      parsed.push({ time: lastTime, text: cleanText });
-    } else {
-      // If we haven't seen a tag yet, assume time 0
-      parsed.push({ time: 0, text: cleanText });
-      hasTags = true; // So we don't treat it as a pure raw-text file later
-    }
+    if (shouldSkipLyricLine(line)) continue;
+
+    // Regular lyric line
+    result.push({ time: currentTime, text: line });
   }
 
-  if (parsed.length === 0) {
-    // Fallback if no tags at all
-    const textLines = normalizedText
-      .split('\n')
-      .map(l => l.trim())
-      .map((line) => (line.startsWith(LRC_INLINE_PREFIX_TAG) ? line.substring(LRC_INLINE_PREFIX_TAG.length).trim() : line))
-      .filter((line) => line === '' || !shouldSkipLyricLine(line))
-      .join('\n');
-    return [{ time: 0, text: textLines }];
+  if (result.length === 0) {
+    return [{ time: 0, text: normalized.trim() }];
   }
 
-  // Group lines with same timestamp to avoid overlapping
-  const grouped: { time: number; text: string }[] = [];
-  for (const entry of parsed) {
-    const existing = grouped.find(g => g.time === entry.time);
-    if (existing) {
-      existing.text += '\n' + entry.text;
-    } else {
-      grouped.push(entry);
-    }
-  }
-
-  // trim the grouped texts
-  grouped.forEach(g => {
-    // replace 3+ newlines with 2 newlines to avoid massive gaps
-    g.text = g.text.replace(/\n{3,}/g, '\n\n').trim();
-  });
-
-  return grouped.sort((a, b) => a.time - b.time);
+  return result.sort((a, b) => a.time - b.time);
 }
 
 export default function LyricsPlayer({
@@ -148,7 +98,6 @@ export default function LyricsPlayer({
   }, []);
 
   useEffect(() => {
-    // Explicitly handle song change auto-play
     if (audioRef.current && song.audio_url) {
       setIsPlaying(false);
       audioRef.current.load();
@@ -156,7 +105,6 @@ export default function LyricsPlayer({
     }
   }, [song]);
 
-  // Parse lyrics
   const lyricsText = song.lyrics || "No lyrics available.";
   const parsedLyrics = useMemo(() => parseLRC(lyricsText), [lyricsText]);
 
@@ -169,21 +117,18 @@ export default function LyricsPlayer({
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       
-      // Auto-scroll lyrics
       if (scrollRef.current && parsedLyrics.length > 0) {
-        let targetLine = -1;
-        for (let i = parsedLyrics.length - 1; i >= 0; i--) {
-          if (audio.currentTime >= parsedLyrics[i].time) {
+        // Find the last non-section lyric line at or before current time
+        let targetLine = 0;
+        for (let i = 0; i < parsedLyrics.length; i++) {
+          if (!parsedLyrics[i].isSection && parsedLyrics[i].time <= audio.currentTime) {
             targetLine = i;
-            break;
           }
         }
-        if (targetLine === -1) targetLine = 0;
         
         if (targetLine !== lastTargetLineRef.current) {
           lastTargetLineRef.current = targetLine;
           const lineElements = scrollRef.current.children;
-          
           if (lineElements && lineElements[targetLine]) {
             lineElements[targetLine].scrollIntoView({
               behavior: 'smooth',
@@ -243,9 +188,8 @@ export default function LyricsPlayer({
 
   const handleLyricClick = (idx: number) => {
     if (!audioRef.current || parsedLyrics.length === 0) return;
-    const newTime = parsedLyrics[idx].time;
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+    audioRef.current.currentTime = parsedLyrics[idx].time;
+    setCurrentTime(parsedLyrics[idx].time);
   };
 
   const formatTime = (time: number) => {
@@ -257,15 +201,12 @@ export default function LyricsPlayer({
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   
-  let activeLineIndex = -1;
-  for (let i = parsedLyrics.length - 1; i >= 0; i--) {
-    if (currentTime >= parsedLyrics[i].time) {
+  // Active line = last non-section lyric whose timestamp has passed
+  let activeLineIndex = 0;
+  for (let i = 0; i < parsedLyrics.length; i++) {
+    if (!parsedLyrics[i].isSection && parsedLyrics[i].time <= currentTime) {
       activeLineIndex = i;
-      break;
     }
-  }
-  if (activeLineIndex === -1 && parsedLyrics.length > 0) {
-    activeLineIndex = 0;
   }
 
   return (
@@ -296,7 +237,6 @@ export default function LyricsPlayer({
       animation: 'glassFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards'
     }}>
       
-      {/* Background with Glassmorphism */}
       {song.cover_url && (
         <div style={{
           position: 'absolute',
@@ -350,7 +290,7 @@ export default function LyricsPlayer({
         )}
       </div>
 
-      {/* Main Content: Lyrics and Player */}
+      {/* Main Content */}
       <div style={{ 
         position: 'relative', 
         zIndex: 1, 
@@ -363,7 +303,7 @@ export default function LyricsPlayer({
         animation: 'contentFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.3s'
       }}>
         
-        {/* Left Side: Cover Art and Player Controls */}
+        {/* Left Side */}
         <div style={{ 
           flex: '0 0 400px', 
           display: 'flex', 
@@ -391,7 +331,7 @@ export default function LyricsPlayer({
           <div>
             <h2 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>{song.title}</h2>
             <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)' }}>
-              {song.genre || 'Unknown Artist'} • {song.bpm ? `${song.bpm} BPM` : 'Unknown BPM'}
+              {song.genre || 'Unknown Genre'} • {song.bpm ? `${song.bpm} BPM` : 'Unknown BPM'}
             </div>
           </div>
 
@@ -399,7 +339,6 @@ export default function LyricsPlayer({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: 'auto' }}>
             <audio ref={audioRef} src={song.audio_url || ''} />
             
-            {/* Scrubber */}
             <div 
               ref={trackRef}
               onClick={handleSeek}
@@ -433,7 +372,6 @@ export default function LyricsPlayer({
               <span>{formatTime(duration)}</span>
             </div>
 
-            {/* Play Button */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                <button 
                 onClick={togglePlay}
@@ -474,10 +412,10 @@ export default function LyricsPlayer({
           overflowY: 'auto', 
           maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)',
           WebkitMaskImage: '-webkit-linear-gradient(top, transparent, black 10%, black 90%, transparent)',
-          padding: '40vh 0', // Padding to allow scrolling past viewport
+          padding: '40vh 0',
           display: 'flex',
           flexDirection: 'column',
-          gap: '32px'
+          gap: '24px'
         }} ref={scrollRef}>
           {parsedLyrics.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '32px', fontWeight: 'bold' }}>
@@ -485,18 +423,35 @@ export default function LyricsPlayer({
             </div>
           ) : (
             parsedLyrics.map((line, idx) => {
+              // Section header — styled as a small label, not highlighted for sync
+              if (line.isSection) {
+                return (
+                  <div key={idx} style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(255,255,255,0.3)',
+                    paddingTop: '16px',
+                    userSelect: 'none',
+                  }}>
+                    {line.text.replace(/^\[|\]$/g, '')}
+                  </div>
+                );
+              }
+
               const isActive = idx === activeLineIndex;
               const isPast = idx < activeLineIndex;
               return (
                 <div 
                   key={idx} 
                   onClick={() => handleLyricClick(idx)}
-                   style={{ 
-                     fontSize: LYRICS_FONT_SIZE, 
-                     fontWeight: 'bold', 
-                     lineHeight: '1.2',
-                     whiteSpace: 'pre-line',
-                     cursor: 'pointer',
+                  style={{ 
+                    fontSize: LYRICS_FONT_SIZE, 
+                    fontWeight: 'bold', 
+                    lineHeight: '1.2',
+                    whiteSpace: 'pre-line',
+                    cursor: 'pointer',
                     transition: 'color 0.3s ease, transform 0.3s ease',
                     color: isActive ? 'white' : (isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'),
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',
