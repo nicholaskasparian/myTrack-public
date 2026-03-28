@@ -64,6 +64,9 @@ function parseLRC(lrcText: string) {
     if (cleanText.startsWith('[:]')) {
       cleanText = cleanText.substring(3).trim();
     }
+    // Drop non-lyric SFX/stage-direction lines from Lyria output
+    if (/^(low|high|soft|gentle|deep|distant|subtle)?\s*(hum|humming|sfx|sound effect|ambient noise|fx)\b/i.test(cleanText)) continue;
+    if (/^(music|bpm|duration_secs|good_crop):/i.test(cleanText)) continue;
     
     if (hasTags) {
       parsed.push({ time: lastTime, text: cleanText });
@@ -109,6 +112,14 @@ export default function LyricsPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(song.duration_seconds || 180);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   // Parse lyrics
   const lyricsText = song.lyrics || "No lyrics available.";
@@ -445,11 +456,12 @@ export default function LyricsPlayer({
                 <div 
                   key={idx} 
                   onClick={() => handleLyricClick(idx)}
-                  style={{ 
-                    fontSize: '48px', 
-                    fontWeight: 'bold', 
-                    lineHeight: '1.2',
-                    cursor: 'pointer',
+                   style={{ 
+                     fontSize: '48px', 
+                     fontWeight: 'bold', 
+                     lineHeight: '1.2',
+                     whiteSpace: 'pre-line',
+                     cursor: 'pointer',
                     transition: 'color 0.3s ease, transform 0.3s ease',
                     color: isActive ? 'white' : (isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'),
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',

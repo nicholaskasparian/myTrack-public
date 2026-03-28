@@ -31,6 +31,7 @@ For the lyrics:
 - Structure the song with section tags like [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro].
 - For each section, add a [mm:ss] start timestamp (e.g., [0:00] for Intro, [0:15] for Verse 1). This helps the model time the vocals correctly.
 - Aim for a total song length of approximately 2 to 3 minutes.
+- Write singable lyric lines only. Do NOT include sound-effect/stage-direction text like "Low hum of analog synths", "SFX", or bracketed production notes.
 
 Respond ONLY with valid JSON — no markdown, no preamble.
 
@@ -39,6 +40,16 @@ Return:
   "lyrics": "Lyrics with [mm:ss] timestamps for each section",
   "lyria_prompt": "80-150 word technical description of the music. Start with the primary genre and tempo. Describe instrumentation concretely. Specify mood and energy arc. Include production style cues. Integrate themes from the lyrics."
 }`;
+
+function sanitizeLyrics(raw: string) {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !/^(low|high|soft|gentle|deep|distant|subtle)?\s*(hum|humming|sfx|sound effect|ambient noise|fx)\b/i.test(line))
+    .filter((line) => !/^(music|bpm|duration_secs|good_crop):/i.test(line))
+    .join('\n');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -186,7 +197,7 @@ export async function POST(req: NextRequest) {
         const [musicResponse, coverResponse] = await Promise.all([
           ai.models.generateContent({
             model: MODELS.LYRIA,
-            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${proLyrics}`,
+            contents: `Generate a ${concept.genre} song. ${lyria_prompt}\n\nLyrics with structure tags and timestamps:\n${sanitizeLyrics(proLyrics)}`,
             config: { 
               responseModalities: ["AUDIO", "TEXT"],
               safetySettings: [
@@ -281,7 +292,7 @@ export async function POST(req: NextRequest) {
           bpm: concept.bpm,
           vibe: moodHint ? moodHint : concept.mood,
           lyria_prompt: lyria_prompt,
-          lyrics: proLyrics.trim() || lyriaLyrics.trim(),
+          lyrics: sanitizeLyrics(proLyrics.trim()) || sanitizeLyrics(lyriaLyrics.trim()),
           audio_url: audioUrl,
           cover_url: coverUrl,
           status: 'queued',

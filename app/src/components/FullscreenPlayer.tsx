@@ -120,6 +120,14 @@ export default function FullscreenPlayer({
   const [rating, setRating] = useState<number>(song?.rating || 0);
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     if (song) setRating(song.rating || 0);
   }, [song]);
 
@@ -524,11 +532,12 @@ export default function FullscreenPlayer({
                 <div 
                   key={idx} 
                   onClick={() => handleLyricClick(idx)}
-                  style={{ 
+                   style={{ 
                      fontSize: '42px', 
                      fontWeight: 'bold', 
-                    lineHeight: '1.2',
-                    cursor: 'pointer',
+                     lineHeight: '1.2',
+                     whiteSpace: 'pre-line',
+                     cursor: 'pointer',
                     transition: 'color 0.3s ease, transform 0.3s ease',
                     color: isActive ? 'white' : (isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'),
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',
