@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
-import type { SoundProfile, Song } from '@/lib/types';
-import SongCard from '@/components/SongCard';
+import type { SoundProfile, Song } from '../../lib/types';
+import SongCard from '../../components/SongCard';
 
 const AudioFeatureBar = ({ label, value }: { label: string; value: number }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', marginBottom: '8px' }}>

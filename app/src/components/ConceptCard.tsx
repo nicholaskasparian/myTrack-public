@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { Concept } from '@/lib/types';
+import type { Concept } from '../lib/types';
 
 export default function ConceptCard({ 
   concept, 

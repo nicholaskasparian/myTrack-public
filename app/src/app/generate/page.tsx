@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Concept, Song, GenerationStep } from '@/lib/types';
-import ConceptCard from '@/components/ConceptCard';
-import AudioPlayer from '@/components/AudioPlayer';
-import RatingSlider from '@/components/RatingSlider';
+import type { Concept, Song, GenerationStep } from '../../lib/types';
+import ConceptCard from '../../components/ConceptCard';
+import AudioPlayer from '../../components/AudioPlayer';
+import RatingSlider from '../../components/RatingSlider';
 
 export default function GeneratePage() {
   const router = useRouter();

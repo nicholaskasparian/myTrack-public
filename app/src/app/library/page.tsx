@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import SongCard from '@/components/SongCard';
-import type { Song } from '@/lib/types';
+import SongCard from '../../components/SongCard';
+import type { Song } from '../../lib/types';
 import Link from 'next/link';
-import AudioPlayer from '@/components/AudioPlayer';
+import AudioPlayer from '../../components/AudioPlayer';
 
 export default function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([]);
