@@ -26,9 +26,9 @@ function parseLRC(lrcText: string) {
 
   // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
   // while avoiding common abbreviation/acronym patterns.
-  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
+  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (_match, punctuation, offset, source) => {
     const precedingContext = source.slice(Math.max(0, offset - ABBREVIATION_CONTEXT_LENGTH), offset + 1);
-    if (ABBREVIATION_TAIL_PATTERN.test(precedingContext)) return match;
+    if (ABBREVIATION_TAIL_PATTERN.test(precedingContext)) return _match;
     return `${punctuation}\n`;
   });
   

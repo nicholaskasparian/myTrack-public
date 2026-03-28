@@ -78,11 +78,11 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ results: data || [] });
-    } catch (semanticError) {
-      console.warn('Semantic search unavailable (embedding generation or search_songs RPC failed), falling back to text search:', semanticError);
+    } catch (embeddingOrRpcError) {
+      console.warn('Semantic search unavailable (embedding generation or search_songs RPC failed), falling back to text search:', embeddingOrRpcError);
     }
 
-    // Step 2 fallback: text search (works without embedding API or RPC setup)
+    // Step 2 fallback: safe in-memory text search (works without embedding API or RPC setup)
     const queryTerms = normalizedQuery
       .replace(SAFE_TERM_PATTERN, '')
       .split(/\s+/)
@@ -94,30 +94,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ results: [] });
     }
 
-    const { data: fallbackData, error: fallbackError } = await supabase
+    const { data: candidateSongs, error: fallbackError } = await supabase
       .from('songs')
       .select('*')
       .eq('user_id', userId)
-      .or(
-        queryTerms
-          .flatMap((term) => [
-            `title.ilike.%${term}%`,
-            `genre.ilike.%${term}%`,
-            `mood.ilike.%${term}%`,
-            `vibe.ilike.%${term}%`,
-            `lyrics.ilike.%${term}%`,
-          ])
-          .join(',')
-      )
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(200);
 
     if (fallbackError) {
       console.error('Fallback text search error:', fallbackError);
       return NextResponse.json({ error: 'Failed to search songs' }, { status: 500 });
     }
 
-    return NextResponse.json({ results: fallbackData || [] });
+    const normalizedTerms = queryTerms.map((term) => term.toLowerCase());
+    const fallbackData = (candidateSongs || [])
+      .filter((song: any) => {
+        const searchable = `${song.title || ''} ${song.genre || ''} ${song.mood || ''} ${song.vibe || ''} ${song.lyrics || ''}`.toLowerCase();
+        return normalizedTerms.every((term) => searchable.includes(term));
+      })
+      .slice(0, 20);
+
+    return NextResponse.json({ results: fallbackData });
   } catch (error) {
     console.error('Error searching songs:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
