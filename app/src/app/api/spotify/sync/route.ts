@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { nanoid } from 'nanoid';
-import { AudioFeatures } from '@/lib/types';
+import { AudioFeatures } from '../../../../lib/types';
 
 async function fetchSpotify(url: string, token: string) {
   try {

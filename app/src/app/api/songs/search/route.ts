@@ -18,8 +18,8 @@
 */
 
 import { NextRequest, NextResponse } from 'next/server';
-import ai, { MODELS } from '@/lib/gemini';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import ai, { MODELS } from '../../../../lib/gemini';
+import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 
 export async function POST(req: NextRequest) {

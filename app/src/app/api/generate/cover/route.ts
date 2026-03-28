@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import ai, { MODELS } from '@/lib/gemini';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { Concept } from '@/lib/types';
+import ai, { MODELS } from '../../../../lib/gemini';
+import { getSupabaseAdmin } from '../../../../lib/supabase';
+import { Concept } from '../../../../lib/types';
 
 export async function POST(req: NextRequest) {
   try {
