@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Playlist } from '../../lib/types'
 
 export default function PlaylistsPage() {
@@ -16,10 +17,7 @@ export default function PlaylistsPage() {
     setIsLoading(true)
     try {
       const res = await fetch('/api/playlists')
-      if (res.ok) {
-        const data = await res.json()
-        setPlaylists(data)
-      }
+      if (res.ok) setPlaylists(await res.json())
     } catch (e) {
       console.error(e)
     } finally {
@@ -33,12 +31,11 @@ export default function PlaylistsPage() {
 
   const handleCreatePlaylist = async () => {
     if (!newPlaylistName.trim()) return
-
     try {
       const res = await fetch('/api/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlaylistName, is_public: newPlaylistIsPublic })
+        body: JSON.stringify({ name: newPlaylistName, is_public: newPlaylistIsPublic }),
       })
       if (res.ok) {
         const created = await res.json()
@@ -59,201 +56,97 @@ export default function PlaylistsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '2rem',
-        borderBottom: '1px solid var(--border)',
-        paddingBottom: '1rem'
-      }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
-          YOUR PLAYLISTS ({playlists.length})
-        </h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          style={{
-            background: 'var(--accent)',
-            color: 'var(--accent-inverse)',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            cursor: 'pointer',
-            fontWeight: 500,
-            fontFamily: 'inherit'
-          }}
-        >
-          + New Playlist
-        </button>
-      </header>
-
-      {isLoading ? (
-        <div style={{ color: 'var(--ink-muted)' }}>Loading playlists...</div>
-      ) : playlists.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '4rem 2rem',
-          border: '1px dashed var(--border)',
-          color: 'var(--ink-muted)'
-        }}>
-          No playlists yet. Create one to organize your songs.
+    <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <nav className="surface top-nav">
+        <div className="brand">myTrack playlists</div>
+        <div className="nav-links">
+          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
+          <Link href="/library" className="btn btn-secondary">Library</Link>
+          <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">+ New playlist</button>
         </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1.5rem'
-        }}>
-          {playlists.map(playlist => (
-            <div key={playlist.id} style={{
-              border: '1px solid var(--border)',
-              background: 'var(--card-bg)',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              {/* Mosaic */}
-              <div style={{
-                width: '100%',
-                aspectRatio: '1',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gridTemplateRows: '1fr 1fr',
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--bg)'
-              }}>
-                {[0, 1, 2, 3].map(idx => {
-                  const url = playlist.cover_urls?.[idx]
-                  return (
-                    <div key={idx} style={{
-                      borderRight: idx % 2 === 0 ? '1px solid var(--border)' : 'none',
-                      borderBottom: idx < 2 ? '1px solid var(--border)' : 'none',
-                      backgroundColor: url ? 'transparent' : 'var(--border)',
-                      backgroundImage: url ? `url(${url})` : 'none',
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center'
-                    }} />
-                  )
-                })}
-              </div>
-              
-              <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{playlist.name}</h3>
-                <div style={{ fontSize: '0.875rem', color: 'var(--ink-muted)' }}>
-                  {playlist.song_count} songs • {playlist.is_public ? 'Public' : 'Private'}
+      </nav>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h1 className="section-title" style={{ marginBottom: 0 }}>Your playlists</h1>
+          <span className="tag">{playlists.length} total</span>
+        </div>
+
+        {isLoading ? (
+          <div className="notice">Loading playlists...</div>
+        ) : playlists.length === 0 ? (
+          <div className="notice">No playlists yet. Create one to organize your songs.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.9rem' }}>
+            {playlists.map((playlist) => (
+              <article key={playlist.id} className="panel" style={{ background: 'rgba(255,255,255,0.74)', padding: '0.8rem', gap: '0.7rem', display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateRows: '1fr 1fr',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-deep)',
+                  }}
+                >
+                  {[0, 1, 2, 3].map((idx) => {
+                    const url = playlist.cover_urls?.[idx]
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          borderRight: idx % 2 === 0 ? '1px solid var(--border)' : 'none',
+                          borderBottom: idx < 2 ? '1px solid var(--border)' : 'none',
+                          backgroundImage: url ? `url(${url})` : 'none',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
+                      />
+                    )
+                  })}
                 </div>
-                
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  <button
-                    onClick={() => router.push(`/playlists/${playlist.id}`)}
-                    style={{
-                      flex: 1,
-                      background: 'var(--bg)',
-                      color: 'var(--ink)',
-                      border: '1px solid var(--border)',
-                      padding: '0.5rem',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit'
-                    }}
-                  >
+
+                <div>
+                  <h3 style={{ marginBottom: '0.28rem', fontSize: '1.1rem' }}>{playlist.name}</h3>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--ink-muted)' }}>
+                    {playlist.song_count} songs • {playlist.is_public ? 'Public' : 'Private'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.45rem' }}>
+                  <button onClick={() => router.push(`/playlists/${playlist.id}`)} className="btn btn-secondary" style={{ flex: 1 }}>
                     Open
                   </button>
                   {playlist.is_public && (
-                    <button
-                      onClick={() => handleShare(playlist.id)}
-                      style={{
-                        background: 'var(--bg)',
-                        color: 'var(--ink)',
-                        border: '1px solid var(--border)',
-                        padding: '0.5rem',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit'
-                      }}
-                    >
+                    <button onClick={() => handleShare(playlist.id)} className="btn btn-secondary">
                       Share
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* Modal */}
       {isModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'var(--card-bg)',
-            border: '1px solid var(--border)',
-            padding: '2rem',
-            width: '100%',
-            maxWidth: '400px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1.5rem'
-          }}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Create Playlist</h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>Name</label>
-              <input
-                type="text"
-                value={newPlaylistName}
-                onChange={e => setNewPlaylistName(e.target.value)}
-                style={{
-                  padding: '0.5rem',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg)',
-                  color: 'var(--ink)',
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
-            
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={newPlaylistIsPublic}
-                onChange={e => setNewPlaylistIsPublic(e.target.checked)}
-              />
-              Public
-            </label>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid var(--border)',
-                  color: 'var(--ink)',
-                  padding: '0.5rem 1rem',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreatePlaylist}
-                style={{
-                  background: 'var(--accent)',
-                  color: 'var(--accent-inverse)',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit'
-                }}
-              >
-                Create
-              </button>
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h2 className="section-title">Create playlist</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              <input className="input" type="text" value={newPlaylistName} onChange={(e) => setNewPlaylistName(e.target.value)} placeholder="Playlist name" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--ink-muted)' }}>
+                <input type="checkbox" checked={newPlaylistIsPublic} onChange={(e) => setNewPlaylistIsPublic(e.target.checked)} />
+                Public playlist
+              </label>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button onClick={() => setIsModalOpen(false)} className="btn btn-ghost">Cancel</button>
+                <button onClick={handleCreatePlaylist} className="btn btn-primary">Create</button>
+              </div>
             </div>
           </div>
         </div>

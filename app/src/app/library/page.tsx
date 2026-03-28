@@ -1,112 +1,106 @@
-'use client';
+'use client'
 
-import React, { useState, useEffect, useRef } from 'react';
-import SongCard from '../../components/SongCard';
-import type { Song } from '../../lib/types';
-import Link from 'next/link';
-import AudioPlayer from '../../components/AudioPlayer';
-import FullscreenPlayer from '../../components/FullscreenPlayer';
+import React, { useState, useEffect, useRef } from 'react'
+import SongCard from '../../components/SongCard'
+import type { Song } from '../../lib/types'
+import Link from 'next/link'
+import FullscreenPlayer from '../../components/FullscreenPlayer'
 
 export default function LibraryPage() {
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Song[] | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [playingSong, setPlayingSong] = useState<Song | null>(null);
-  
-  // Playlist Modal State
-  const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null);
-  const [playlists, setPlaylists] = useState<any[]>([]);
-  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [songs, setSongs] = useState<Song[]>([])
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Song[] | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [playingSong, setPlayingSong] = useState<Song | null>(null)
 
-  // Debounce ref
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null)
+  const [playlists, setPlaylists] = useState<any[]>([])
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false)
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false)
+  const [newPlaylistName, setNewPlaylistName] = useState('')
+
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
-    fetchSongs();
-  }, []);
+    fetchSongs()
+  }, [])
 
   const fetchSongs = async () => {
     try {
-      const res = await fetch('/api/songs');
+      const res = await fetch('/api/songs')
       if (res.ok) {
-        const data = await res.json();
-        setSongs(data);
+        const data = await res.json()
+        setSongs(data)
       }
     } catch (err) {
-      console.error('Error fetching songs', err);
+      console.error('Error fetching songs', err)
     }
-  };
+  }
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setQuery(val);
+    const val = e.target.value
+    setQuery(val)
 
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
 
     if (!val.trim()) {
-      setSearchResults(null);
-      setIsSearching(false);
-      return;
+      setSearchResults(null)
+      setIsSearching(false)
+      return
     }
 
-    setIsSearching(true);
+    setIsSearching(true)
     searchTimeout.current = setTimeout(async () => {
       try {
         const res = await fetch('/api/songs/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: val }),
-        });
+        })
         if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data.results);
+          const data = await res.json()
+          setSearchResults(data.results)
         } else {
-          setSearchResults([]);
+          setSearchResults([])
         }
       } catch (err) {
-        console.error('Error searching', err);
-        setSearchResults([]);
+        console.error('Error searching', err)
+        setSearchResults([])
       } finally {
-        setIsSearching(false);
+        setIsSearching(false)
       }
-    }, 300);
-  };
+    }, 300)
+  }
 
   const handlePlay = async (song: Song) => {
-    setPlayingSong(song);
-    // Record play event
+    setPlayingSong(song)
     try {
-      await fetch(`/api/songs/${song.id}/play`, { method: 'POST' });
+      await fetch(`/api/songs/${song.id}/play`, { method: 'POST' })
     } catch (err) {
-      console.error('Failed to record play', err);
+      console.error('Failed to record play', err)
     }
-  };
+  }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this song?')) return;
+    if (!confirm('Are you sure you want to delete this song?')) return
     try {
-      const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/songs/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        setSongs((prev) => prev.filter((s) => s.id !== id));
-        if (searchResults) {
-          setSearchResults((prev) => prev!.filter((s) => s.id !== id));
-        }
+        setSongs((prev) => prev.filter((s) => s.id !== id))
+        if (searchResults) setSearchResults((prev) => prev!.filter((s) => s.id !== id))
       }
     } catch (err) {
-      console.error('Error deleting song', err);
+      console.error('Error deleting song', err)
     }
-  };
+  }
 
   const handleShare = async (song: Song) => {
     try {
@@ -114,224 +108,180 @@ export default function LibraryPage() {
         await fetch(`/api/songs/${song.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_public: true })
-        });
+          body: JSON.stringify({ is_public: true }),
+        })
       }
-      const url = `${window.location.origin}/share/${song.id}`;
-      await navigator.clipboard.writeText(url);
-      alert('Share link copied to clipboard!');
+      const url = `${window.location.origin}/share/${song.id}`
+      await navigator.clipboard.writeText(url)
+      alert('Share link copied to clipboard!')
     } catch (err) {
-      console.error('Error sharing song', err);
+      console.error('Error sharing song', err)
     }
-  };
+  }
 
   const openPlaylistModal = async (songId: string) => {
-    setAddingToPlaylist(songId);
-    setIsLoadingPlaylists(true);
+    setAddingToPlaylist(songId)
+    setIsLoadingPlaylists(true)
     try {
-      const res = await fetch('/api/playlists');
-      if (res.ok) {
-        const data = await res.json();
-        setPlaylists(data);
-      }
+      const res = await fetch('/api/playlists')
+      if (res.ok) setPlaylists(await res.json())
     } catch (err) {
-      console.error('Failed to fetch playlists', err);
+      console.error('Failed to fetch playlists', err)
     } finally {
-      setIsLoadingPlaylists(false);
+      setIsLoadingPlaylists(false)
     }
-  };
+  }
 
   const handleCreatePlaylist = async () => {
-    if (!newPlaylistName.trim()) return;
-    setIsCreatingPlaylist(true);
+    if (!newPlaylistName.trim()) return
+    setIsCreatingPlaylist(true)
     try {
       const res = await fetch('/api/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlaylistName, song_id: addingToPlaylist })
-      });
+        body: JSON.stringify({ name: newPlaylistName, song_id: addingToPlaylist }),
+      })
       if (res.ok) {
-        const newPlaylist = await res.json();
-        setPlaylists([...playlists, newPlaylist]);
-        setNewPlaylistName('');
-        alert('Playlist created and song added!');
-        setAddingToPlaylist(null);
+        const newPlaylist = await res.json()
+        setPlaylists([...playlists, newPlaylist])
+        setNewPlaylistName('')
+        alert('Playlist created and song added!')
+        setAddingToPlaylist(null)
       }
     } catch (err) {
-      console.error('Error creating playlist', err);
+      console.error('Error creating playlist', err)
     } finally {
-      setIsCreatingPlaylist(false);
+      setIsCreatingPlaylist(false)
     }
-  };
+  }
 
   const selectPlaylist = async (playlistId: string) => {
     try {
       await fetch(`/api/playlists/${playlistId}/songs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ song_id: addingToPlaylist })
-      });
-      alert('Added to playlist!');
-      setAddingToPlaylist(null);
+        body: JSON.stringify({ song_id: addingToPlaylist }),
+      })
+      alert('Added to playlist!')
+      setAddingToPlaylist(null)
     } catch (err) {
-      console.error('Error adding to playlist', err);
+      console.error('Error adding to playlist', err)
     }
-  };
+  }
 
-  const displaySongs = searchResults !== null ? searchResults : songs;
+  const displaySongs = searchResults !== null ? searchResults : songs
 
   const handleNext = () => {
-    if (!playingSong) return;
-    const idx = displaySongs.findIndex((s) => s.id === playingSong.id);
-    if (idx >= 0 && idx < displaySongs.length - 1) {
-      handlePlay(displaySongs[idx + 1]);
-    }
-  };
+    if (!playingSong) return
+    const idx = displaySongs.findIndex((s) => s.id === playingSong.id)
+    if (idx >= 0 && idx < displaySongs.length - 1) handlePlay(displaySongs[idx + 1])
+  }
 
   const handlePrev = () => {
-    if (!playingSong) return;
-    const idx = displaySongs.findIndex((s) => s.id === playingSong.id);
-    if (idx > 0) {
-      handlePlay(displaySongs[idx - 1]);
-    }
-  };
+    if (!playingSong) return
+    const idx = displaySongs.findIndex((s) => s.id === playingSong.id)
+    if (idx > 0) handlePlay(displaySongs[idx - 1])
+  }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', fontFamily: 'var(--font-ibm-plex-sans)' }}>
-      {/* Search Bar */}
-      <div style={{ marginBottom: '2rem', position: 'relative' }}>
-        <input
-          type="text"
-          value={query}
-          onChange={handleSearch}
-          placeholder="Search your songs by vibe, mood, lyrics..."
-          style={{
-            width: '100%',
-            padding: '12px',
-            border: '1px solid var(--border)',
-            borderRadius: 0,
-            fontSize: '1rem',
-            fontFamily: 'inherit',
-            outline: 'none',
-            background: 'var(--bg)',
-            color: 'var(--ink)'
-          }}
-        />
-        {isSearching && <div style={{ position: 'absolute', right: '12px', top: '12px', color: 'var(--ink-muted)' }}>Searching...</div>}
-        {searchResults !== null && !isSearching && (
-          <div style={{ marginTop: '8px', color: 'var(--ink-muted)', fontSize: '14px' }}>
-            {searchResults.length} results for &apos;{query}&apos;
-          </div>
-        )}
-      </div>
-
-      {/* Header */}
-      <div style={{ marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.25rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-        YOUR SONGS &mdash; {displaySongs.length} songs
-      </div>
-
-      {/* Grid */}
-      {displaySongs.length === 0 ? (
-        <div style={{ padding: '4rem 0', textAlign: 'center', color: 'var(--ink-muted)' }}>
-          No songs yet. <Link href="/generate" style={{ color: 'var(--ink)', textDecoration: 'underline' }}>Generate your first song &rarr;</Link>
+    <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <nav className="surface top-nav">
+        <div className="brand">myTrack library</div>
+        <div className="nav-links">
+          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
+          <Link href="/playlists" className="btn btn-secondary">Playlists</Link>
+          <Link href="/generate" className="btn btn-primary">Generate</Link>
         </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-          gap: '16px'
-        }}>
-          {displaySongs.map(song => (
-            <div key={song.id} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
+      </nav>
+
+      <section className="panel">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <input
+            className="input"
+            type="text"
+            value={query}
+            onChange={handleSearch}
+            placeholder="Search by vibe, mood, lyrics..."
+          />
+          {isSearching && <div style={{ color: 'var(--ink-muted)', fontSize: '0.84rem' }}>Searching...</div>}
+          {searchResults !== null && !isSearching && (
+            <div style={{ color: 'var(--ink-muted)', fontSize: '0.84rem' }}>
+              {searchResults.length} results for &apos;{query}&apos;
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2 className="section-title" style={{ marginBottom: 0 }}>Your songs</h2>
+          <span className="tag">{displaySongs.length} tracks</span>
+        </div>
+
+        {displaySongs.length === 0 ? (
+          <div className="notice">
+            No songs yet.{' '}
+            <Link href="/generate" style={{ textDecoration: 'underline', color: 'var(--ink)' }}>
+              Generate your first song →
+            </Link>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? 'repeat(1, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))',
+              gap: '0.8rem',
+            }}
+          >
+            {displaySongs.map((song) => (
               <SongCard
+                key={song.id}
                 song={song}
                 onPlay={() => handlePlay(song)}
                 onDelete={() => handleDelete(song.id)}
                 onShare={() => handleShare(song)}
                 onAddToPlaylist={() => openPlaylistModal(song.id)}
               />
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* Fullscreen Player */}
       {playingSong && playingSong.audio_url && (
-        <FullscreenPlayer 
-          song={playingSong} 
-          onClose={() => setPlayingSong(null)}
-          onNext={handleNext}
-          onPrev={handlePrev}
-          onAddToPlaylist={openPlaylistModal}
-        />
+        <FullscreenPlayer song={playingSong} onClose={() => setPlayingSong(null)} onNext={handleNext} onPrev={handlePrev} onAddToPlaylist={openPlaylistModal} />
       )}
 
-      {/* Playlist Modal */}
       {addingToPlaylist && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(247, 246, 242, 0.9)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10000
-        }}>
-          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ margin: '0 0 1rem 0' }}>Add to Playlist</h3>
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h3 className="section-title">Add to playlist</h3>
             {isLoadingPlaylists ? (
-              <p>Loading playlists...</p>
+              <p className="notice">Loading playlists...</p>
             ) : playlists.length === 0 ? (
-              <div style={{ marginBottom: '1rem' }}>
-                <p style={{ color: 'var(--ink-muted)' }}>No playlists found.</p>
-              </div>
+              <p className="notice">No playlists found.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
-                {playlists.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => selectPlaylist(p.id)}
-                    style={{
-                      padding: '12px', textAlign: 'left', background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer',
-                      borderRadius: 0, fontFamily: 'inherit'
-                    }}
-                  >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '300px', overflowY: 'auto' }}>
+                {playlists.map((p) => (
+                  <button key={p.id} onClick={() => selectPlaylist(p.id)} className="btn btn-secondary" style={{ justifyContent: 'flex-start', borderRadius: '12px' }}>
                     {p.name}
                   </button>
                 ))}
               </div>
             )}
-            
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-              <input 
-                type="text" 
-                value={newPlaylistName}
-                onChange={(e) => setNewPlaylistName(e.target.value)}
-                placeholder="New playlist name..."
-                style={{ flex: 1, padding: '10px', border: '1px solid var(--border)', fontFamily: 'inherit' }}
-              />
-              <button 
-                onClick={handleCreatePlaylist}
-                disabled={isCreatingPlaylist || !newPlaylistName.trim()}
-                style={{ 
-                  padding: '10px 16px', 
-                  background: 'var(--ink)', 
-                  color: 'var(--bg)', 
-                  border: 'none', 
-                  cursor: (isCreatingPlaylist || !newPlaylistName.trim()) ? 'not-allowed' : 'pointer',
-                  fontWeight: 'bold',
-                  opacity: (isCreatingPlaylist || !newPlaylistName.trim()) ? 0.5 : 1
-                }}
-              >
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.9rem' }}>
+              <input className="input" type="text" value={newPlaylistName} onChange={(e) => setNewPlaylistName(e.target.value)} placeholder="New playlist name..." />
+              <button onClick={handleCreatePlaylist} disabled={isCreatingPlaylist || !newPlaylistName.trim()} className="btn btn-primary">
                 Create
               </button>
             </div>
-            <button 
-              onClick={() => setAddingToPlaylist(null)}
-              style={{ marginTop: '1rem', width: '100%', padding: '12px', background: 'var(--accent)', color: 'var(--accent-inverse)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}
-            >
+
+            <button onClick={() => setAddingToPlaylist(null)} className="btn btn-ghost" style={{ marginTop: '0.8rem', width: '100%' }}>
               Cancel
             </button>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }

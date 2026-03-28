@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import Link from 'next/link'
 import AudioPlayer from '../../../components/AudioPlayer'
 import { Playlist, PlaylistSong } from '../../../lib/types'
 
@@ -10,18 +11,18 @@ export default function PlaylistDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const { user, isLoaded } = useUser()
-  
+
   const [playlist, setPlaylist] = useState<Playlist | null>(null)
   const [songs, setSongs] = useState<PlaylistSong[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editIsPublic, setEditIsPublic] = useState(false)
-  
+
   const [isPlayingAll, setIsPlayingAll] = useState(false)
   const [currentSongIndex, setCurrentSongIndex] = useState(0)
-  
+
   const [dragEnabledIdx, setDragEnabledIdx] = useState<number | null>(null)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [isUpdatingOrder, setIsUpdatingOrder] = useState(false)
@@ -45,10 +46,7 @@ export default function PlaylistDetailPage() {
   const fetchSongs = async () => {
     try {
       const res = await fetch(`/api/playlists/${id}/songs`)
-      if (res.ok) {
-        const data = await res.json()
-        setSongs(data)
-      }
+      if (res.ok) setSongs(await res.json())
     } catch (e) {
       console.error(e)
     }
@@ -57,9 +55,7 @@ export default function PlaylistDetailPage() {
   useEffect(() => {
     if (!id || !isLoaded) return
     setIsLoading(true)
-    Promise.all([fetchPlaylist(), fetchSongs()]).finally(() => {
-      setIsLoading(false)
-    })
+    Promise.all([fetchPlaylist(), fetchSongs()]).finally(() => setIsLoading(false))
   }, [id, isLoaded])
 
   const isOwner = isLoaded && user && playlist?.user_id === user.id
@@ -71,12 +67,9 @@ export default function PlaylistDetailPage() {
       const res = await fetch(`/api/playlists/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName, is_public: editIsPublic })
+        body: JSON.stringify({ name: editName, is_public: editIsPublic }),
       })
-      if (res.ok) {
-        const updated = await res.json()
-        setPlaylist(updated)
-      }
+      if (res.ok) setPlaylist(await res.json())
     } catch (e) {
       console.error(e)
     }
@@ -86,26 +79,21 @@ export default function PlaylistDetailPage() {
     if (!confirm('Are you sure you want to delete this playlist?')) return
     try {
       const res = await fetch(`/api/playlists/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        router.push('/playlists')
-      }
+      if (res.ok) router.push('/playlists')
     } catch (e) {
       console.error(e)
     }
   }
 
   const handleShare = () => {
-    const url = window.location.href
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(window.location.href)
     alert('Link copied to clipboard!')
   }
 
   const handleRemoveSong = async (songId: string) => {
     try {
       const res = await fetch(`/api/playlists/${id}/songs/${songId}`, { method: 'DELETE' })
-      if (res.ok) {
-        setSongs(songs.filter(s => s.id !== songId))
-      }
+      if (res.ok) setSongs(songs.filter((s) => s.id !== songId))
     } catch (e) {
       console.error(e)
     }
@@ -114,7 +102,6 @@ export default function PlaylistDetailPage() {
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIdx(index)
     e.dataTransfer.effectAllowed = 'move'
-    // For Firefox
     e.dataTransfer.setData('text/plain', index.toString())
   }
 
@@ -126,7 +113,7 @@ export default function PlaylistDetailPage() {
     const draggedItem = newSongs[draggedIdx]
     newSongs.splice(draggedIdx, 1)
     newSongs.splice(targetIndex, 0, draggedItem)
-    
+
     setSongs(newSongs)
     setDraggedIdx(targetIndex)
   }
@@ -134,14 +121,12 @@ export default function PlaylistDetailPage() {
   const handleDragEnd = async () => {
     setDraggedIdx(null)
     setDragEnabledIdx(null)
-    
-    // Save new order
     setIsUpdatingOrder(true)
     try {
       await fetch(`/api/playlists/${id}/songs`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ordered_song_ids: songs.map(s => s.id) })
+        body: JSON.stringify({ ordered_song_ids: songs.map((s) => s.id) }),
       })
     } catch (e) {
       console.error(e)
@@ -157,236 +142,149 @@ export default function PlaylistDetailPage() {
   }
 
   const handleSongEnded = () => {
-    if (currentSongIndex < songs.length - 1) {
-      setCurrentSongIndex(prev => prev + 1)
-    } else {
-      setIsPlayingAll(false)
-    }
+    if (currentSongIndex < songs.length - 1) setCurrentSongIndex((prev) => prev + 1)
+    else setIsPlayingAll(false)
   }
 
-  if (isLoading) return <div style={{ padding: '2rem', color: 'var(--ink-muted)' }}>Loading...</div>
-  if (!playlist) return <div style={{ padding: '2rem', color: 'var(--ink-muted)' }}>Playlist not found.</div>
+  if (isLoading) return <div className="page-wrap"><div className="notice">Loading...</div></div>
+  if (!playlist) return <div className="page-wrap"><div className="notice">Playlist not found.</div></div>
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
-      {/* Header */}
-      <header style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+    <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <nav className="surface top-nav">
+        <div className="brand">Playlist details</div>
+        <div className="nav-links">
+          <Link href="/playlists" className="btn btn-secondary">Back to playlists</Link>
+          <Link href="/library" className="btn btn-secondary">Library</Link>
+        </div>
+      </nav>
+
+      <section className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {isEditing ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  style={{ fontSize: '2rem', fontWeight: 'bold', padding: '0.5rem', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--border)', fontFamily: 'inherit' }}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={editIsPublic} onChange={e => setEditIsPublic(e.target.checked)} />
-                  Public Playlist
+              <>
+                <input className="input" type="text" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                <label style={{ display: 'flex', gap: '0.4rem', color: 'var(--ink-muted)' }}>
+                  <input type="checkbox" checked={editIsPublic} onChange={(e) => setEditIsPublic(e.target.checked)} /> Public playlist
                 </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={handleUpdatePlaylist} style={{ padding: '0.5rem 1rem', background: 'var(--ink)', color: 'var(--bg)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Save</button>
-                  <button onClick={() => setIsEditing(false)} style={{ padding: '0.5rem 1rem', background: 'transparent', color: 'var(--ink)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <div style={{ display: 'flex', gap: '0.45rem' }}>
+                  <button onClick={handleUpdatePlaylist} className="btn btn-primary">Save</button>
+                  <button onClick={() => setIsEditing(false)} className="btn btn-ghost">Cancel</button>
                 </div>
-              </div>
+              </>
             ) : (
               <>
-                <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 700 }}>{playlist.name}</h1>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', color: 'var(--ink-muted)' }}>
-                  <span>{songs.length} songs</span>
-                  <span style={{ padding: '0.2rem 0.5rem', border: '1px solid var(--border)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
-                    {playlist.is_public ? 'Public' : 'Private'}
-                  </span>
-                  <span>Created {new Date(playlist.created_at).toLocaleDateString()}</span>
+                <h1 className="section-title" style={{ marginBottom: 0 }}>{playlist.name}</h1>
+                <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', color: 'var(--ink-muted)', fontSize: '0.8rem' }}>
+                  <span className="tag">{songs.length} songs</span>
+                  <span className="tag">{playlist.is_public ? 'Public' : 'Private'}</span>
+                  <span className="tag">Created {new Date(playlist.created_at).toLocaleDateString()}</span>
                 </div>
               </>
             )}
           </div>
 
           {!isEditing && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
               {isOwner && (
                 <>
-                  <button onClick={() => setIsEditing(true)} style={{ padding: '0.5rem 1rem', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
-                  <button onClick={handleDeletePlaylist} style={{ padding: '0.5rem 1rem', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                  <button onClick={() => setIsEditing(true)} className="btn btn-secondary">Edit</button>
+                  <button onClick={handleDeletePlaylist} className="btn btn-ghost" style={{ color: 'var(--danger)' }}>Delete</button>
                 </>
               )}
-              {playlist.is_public && (
-                <button onClick={handleShare} style={{ padding: '0.5rem 1rem', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>Share</button>
-              )}
+              {playlist.is_public && <button onClick={handleShare} className="btn btn-secondary">Share</button>}
             </div>
           )}
         </div>
 
-        {songs.length > 0 && !isPlayingAll && (
-          <button
-            onClick={handlePlayAll}
-            style={{
-              alignSelf: 'flex-start',
-              background: 'var(--accent)',
-              color: 'var(--accent-inverse)',
-              border: 'none',
-              padding: '0.75rem 2rem',
-              fontSize: '1rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: '1rem',
-              fontFamily: 'inherit'
-            }}
-          >
-            Play All
-          </button>
-        )}
+        {songs.length > 0 && !isPlayingAll && <button onClick={handlePlayAll} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>Play all</button>}
 
         {isPlayingAll && songs[currentSongIndex] && (
-          <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
-            <div style={{ marginBottom: '1rem', fontWeight: 600 }}>
+          <div className="panel" style={{ background: 'rgba(255,255,255,0.68)' }}>
+            <div style={{ marginBottom: '0.5rem', fontWeight: 600 }}>
               Playing: {songs[currentSongIndex].song?.title || (songs[currentSongIndex] as any).songs?.title || 'Unknown Song'}
             </div>
-            <AudioPlayer
-              src={songs[currentSongIndex].song?.audio_url || (songs[currentSongIndex] as any).songs?.audio_url || ''}
-              onEnded={handleSongEnded}
-            />
-            <button
-              onClick={() => setIsPlayingAll(false)}
-              style={{ marginTop: '1rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink)', padding: '0.5rem 1rem', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Stop Playback
-            </button>
+            <AudioPlayer src={songs[currentSongIndex].song?.audio_url || (songs[currentSongIndex] as any).songs?.audio_url || ''} onEnded={handleSongEnded} />
+            <button onClick={() => setIsPlayingAll(false)} className="btn btn-ghost" style={{ marginTop: '0.6rem' }}>Stop playback</button>
           </div>
         )}
-      </header>
+      </section>
 
-      {/* Song List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: isUpdatingOrder ? 0.5 : 1 }}>
+      <section className="panel" style={{ opacity: isUpdatingOrder ? 0.55 : 1 }}>
         {songs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--ink-muted)', border: '1px dashed var(--border)' }}>
-            No songs in this playlist yet. Add songs from your library!
-          </div>
+          <div className="notice">No songs in this playlist yet. Add songs from your library.</div>
         ) : (
-          songs.map((ps, index) => {
-            const isDragged = draggedIdx === index;
-            // Handle different Supabase join return formats
-            const s = ps.song || (ps as any).songs;
-            
-            return (
-              <div
-                key={ps.id}
-                draggable={dragEnabledIdx === index}
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragEnter={(e) => handleDragEnter(e, index)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => e.preventDefault()}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '40px 48px 1fr auto auto',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  padding: '0.75rem',
-                  border: '1px solid var(--border)',
-                  background: isDragged ? 'var(--border)' : 'var(--card-bg)',
-                  opacity: isDragged ? 0.5 : 1,
-                  transition: 'background 0.2s'
-                }}
-              >
-                {/* Position */}
-                <div style={{ color: 'var(--ink-muted)', textAlign: 'center', fontWeight: 500 }}>
-                  {index + 1}
-                </div>
-                
-                {/* Cover */}
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  background: 'var(--border)',
-                  backgroundImage: s?.cover_url ? `url(${s.cover_url})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center'
-                }} />
-                
-                {/* Title & Info */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <div style={{ fontWeight: 600 }}>{s?.title || 'Unknown Title'}</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--ink-muted)' }}>
-                    {s?.genre || 'Unknown Genre'} {s?.bpm ? `• ${s.bpm} BPM` : ''}
-                  </div>
-                </div>
-
-                {/* Rating Badge */}
-                {s?.rating ? (
-                  <div style={{
-                    padding: '0.2rem 0.5rem',
-                    border: '1px solid var(--accent)',
-                    color: 'var(--accent)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600
-                  }}>
-                    {s.rating} / 100
-                  </div>
-                ) : <div />}
-                
-                {/* Actions */}
-                {isOwner ? (
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <button
-                      onClick={() => handleRemoveSong(ps.id)}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid var(--border)',
-                        color: 'red',
-                        padding: '0.4rem 0.8rem',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        fontFamily: 'inherit'
-                      }}
-                      title="Remove from Playlist"
-                    >
-                      Remove
-                    </button>
-                    
-                    <div
-                      onMouseDown={() => setDragEnabledIdx(index)}
-                      onMouseUp={() => setDragEnabledIdx(null)}
-                      onMouseLeave={() => setDragEnabledIdx(null)}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'grab',
-                        color: 'var(--ink-muted)'
-                      }}
-                      title="Drag to reorder"
-                    >
-                      {/* 6-dot grid icon */}
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <circle cx="5" cy="4" r="1.5" />
-                        <circle cx="5" cy="8" r="1.5" />
-                        <circle cx="5" cy="12" r="1.5" />
-                        <circle cx="11" cy="4" r="1.5" />
-                        <circle cx="11" cy="8" r="1.5" />
-                        <circle cx="11" cy="12" r="1.5" />
-                      </svg>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+            {songs.map((ps, index) => {
+              const isDragged = draggedIdx === index
+              const s = ps.song || (ps as any).songs
+              return (
+                <div
+                  key={ps.id}
+                  draggable={dragEnabledIdx === index}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnter={(e) => handleDragEnter(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '34px 46px 1fr auto auto',
+                    alignItems: 'center',
+                    gap: '0.7rem',
+                    padding: '0.62rem',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border)',
+                    background: isDragged ? 'rgba(84, 102, 141, 0.2)' : 'rgba(255,255,255,0.72)',
+                    opacity: isDragged ? 0.65 : 1,
+                  }}
+                >
+                  <div style={{ color: 'var(--ink-muted)', textAlign: 'center', fontWeight: 600 }}>{index + 1}</div>
+                  <div
+                    style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '8px',
+                      background: 'var(--bg-deep)',
+                      backgroundImage: s?.cover_url ? `url(${s.cover_url})` : 'none',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ fontWeight: 600 }}>{s?.title || 'Unknown Title'}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
+                      {s?.genre || 'Unknown Genre'} {s?.bpm ? `• ${s.bpm} BPM` : ''}
                     </div>
                   </div>
-                ) : <div />}
-              </div>
-            )
-          })
+
+                  {s?.rating ? <span className="tag">{s.rating}/10</span> : <div />}
+
+                  {isOwner ? (
+                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                      <button onClick={() => handleRemoveSong(ps.id)} className="btn btn-ghost" style={{ color: 'var(--danger)' }}>Remove</button>
+                      <button
+                        onMouseDown={() => setDragEnabledIdx(index)}
+                        onMouseUp={() => setDragEnabledIdx(null)}
+                        onMouseLeave={() => setDragEnabledIdx(null)}
+                        className="btn btn-secondary"
+                        title="Drag to reorder"
+                        style={{ paddingInline: '0.55rem' }}
+                      >
+                        ↕
+                      </button>
+                    </div>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+              )
+            })}
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* Footer for non-owners */}
-      {!isOwner && playlist.is_public && (
-        <div style={{ textAlign: 'center', marginTop: '3rem', color: 'var(--ink-muted)', fontSize: '0.875rem' }}>
-          Made with myTrack
-        </div>
-      )}
-
+      {!isOwner && playlist.is_public && <div style={{ textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.8rem' }}>Made with myTrack</div>}
     </div>
   )
 }
