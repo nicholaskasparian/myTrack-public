@@ -7,6 +7,12 @@ const SECTION_TAG_REGEX = new RegExp(`^\\[(${SECTION_NAME_REGEX})\\]$`, 'i');
 
 export type LyricLine = { time: number; text: string; isSection?: boolean };
 
+type LyricLineToken = { kind: 'line'; text: string; isSection: boolean; time?: number };
+
+type LyricToken =
+  | { kind: 'anchor'; time: number }
+  | LyricLineToken;
+
 export function shouldSkipLyricLine(line: string) {
   const cleanLine = line.trim();
   if (!cleanLine) return false; // DO NOT skip empty lines, we need them for linebreaks
@@ -33,9 +39,7 @@ export function parseTimedLyrics(raw: string): LyricLine[] {
   const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\](.*)$/;
   // Lyria-style [15.0:] timestamps
   const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):\](.*)$/;
-  // Section tags: [Chorus], [Verse 1], [Bridge], etc.
-  const result: LyricLine[] = [];
-  let currentTime = 0;
+  const tokens: LyricToken[] = [];
 
   for (const line of lines) {
     if (!line) continue;
@@ -45,36 +49,107 @@ export function parseTimedLyrics(raw: string): LyricLine[] {
 
     const mmssMatch = mmssRegex.exec(line);
     if (mmssMatch) {
-      currentTime = parseInt(mmssMatch[1], 10) * 60 + parseFloat(mmssMatch[2]);
+      const parsedTime = parseInt(mmssMatch[1], 10) * 60 + parseFloat(mmssMatch[2]);
+      tokens.push({ kind: 'anchor', time: parsedTime });
       const inline = mmssMatch[3].trim();
       if (inline && !shouldSkipLyricLine(inline)) {
-        result.push({ time: currentTime, text: inline });
+        tokens.push({ kind: 'line', time: parsedTime, text: inline, isSection: false });
       }
       continue;
     }
 
     const lyriaMatch = lyriaTimeRegex.exec(line);
     if (lyriaMatch) {
-      currentTime = parseFloat(lyriaMatch[1]);
+      const parsedTime = parseFloat(lyriaMatch[1]);
+      tokens.push({ kind: 'anchor', time: parsedTime });
       const inline = lyriaMatch[2].trim();
       if (inline && !shouldSkipLyricLine(inline)) {
-        result.push({ time: currentTime, text: inline });
+        tokens.push({ kind: 'line', time: parsedTime, text: inline, isSection: false });
       }
       continue;
     }
 
     if (SECTION_TAG_REGEX.test(line)) {
-      result.push({ time: currentTime, text: line, isSection: true });
+      tokens.push({ kind: 'line', text: line, isSection: true });
       continue;
     }
 
     if (shouldSkipLyricLine(line)) continue;
-    result.push({ time: currentTime, text: line });
+    tokens.push({ kind: 'line', text: line, isSection: false });
   }
+
+  const anchorIndices = tokens
+    .map((token, idx) => (token.kind === 'anchor' ? idx : -1))
+    .filter((idx) => idx >= 0);
+
+  const allAnchorIndices = [-1, ...anchorIndices, tokens.length];
+
+  for (let a = 0; a < allAnchorIndices.length - 1; a++) {
+    const startIdx = allAnchorIndices[a];
+    const endIdx = allAnchorIndices[a + 1];
+    const startTime =
+      startIdx >= 0 && tokens[startIdx]?.kind === 'anchor'
+        ? (tokens[startIdx] as Extract<LyricToken, { kind: 'anchor' }>).time
+        : 0;
+    const endTime =
+      endIdx < tokens.length && tokens[endIdx]?.kind === 'anchor'
+        ? (tokens[endIdx] as Extract<LyricToken, { kind: 'anchor' }>).time
+        : null;
+
+    const untimedLyricIndices: number[] = [];
+    for (let i = startIdx + 1; i < endIdx; i++) {
+      const token = tokens[i];
+      if (token.kind !== 'line') continue;
+      if (token.time !== undefined) continue;
+      if (token.isSection) {
+        token.time = startTime;
+        continue;
+      }
+      untimedLyricIndices.push(i);
+    }
+
+    const canInterpolate =
+      endTime !== null && endTime > startTime && untimedLyricIndices.length > 0;
+
+    if (canInterpolate) {
+      const step = (endTime - startTime) / (untimedLyricIndices.length + 1);
+      untimedLyricIndices.forEach((idx, offset) => {
+        const token = tokens[idx] as Extract<LyricToken, { kind: 'line' }>;
+        token.time = startTime + step * (offset + 1);
+      });
+    } else {
+      untimedLyricIndices.forEach((idx) => {
+        const token = tokens[idx] as Extract<LyricToken, { kind: 'line' }>;
+        token.time = startTime;
+      });
+    }
+  }
+
+  let fallbackTime = 0;
+  for (const token of tokens) {
+    if (token.kind !== 'line') continue;
+    if (token.time === undefined) {
+      token.time = fallbackTime;
+    } else {
+      fallbackTime = token.time;
+    }
+  }
+
+  const timedLineTokens = tokens.filter(
+    (token): token is LyricLineToken & { time: number } =>
+      token.kind === 'line' && typeof token.time === 'number'
+  );
+
+  const result: LyricLine[] = timedLineTokens
+    .map((token) => ({
+      time: token.time,
+      text: token.text,
+      ...(token.isSection ? { isSection: true } : {}),
+    }));
 
   if (result.length === 0) {
     return [{ time: 0, text: normalized.trim() }];
   }
 
-  return result.sort((a, b) => a.time - b.time);
+  return result;
 }
