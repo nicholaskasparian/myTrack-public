@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { Concept, SoundProfile, Song } from '../../../../lib/types';
 import { nanoid } from 'nanoid';
 
-export const maxDuration = 120;
+export const maxDuration = 300; // Increased timeout for multiple music gens
 
 const SYSTEM_INSTRUCTION_IDEAS = `You are a music director for a personalized AI music platform. Given a user's Sound Profile, generate exactly 9 distinct song concepts. 
 
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    console.log(`[QueueMusic] Starting queue generation for user ${userId}`);
     // 1. Fetch user's Sound Profile
     const { data: profileData, error: profileError } = await supabase
       .from('sound_profiles')
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     const sound_profile = profileData as SoundProfile;
 
     // 2. Generate 9 concepts via Flash
+    console.log('[QueueMusic] Generating concepts...');
     let userPromptIdeas = `Sound Profile: ${JSON.stringify(sound_profile)}`;
     if (moodHint) {
         userPromptIdeas += `\n\nGenerate concepts tailored to this specific vibe/mood hint: "${moodHint}". Still keep the user's general sound profile in mind, but heavily lean into the requested vibe.`;
@@ -121,124 +123,137 @@ export async function POST(req: NextRequest) {
 
     // 4. For each of 3 concepts: call prompt, music, cover generation in parallel
     const generateTrack = async (concept: Concept, position: number) => {
-      const songId = nanoid();
+      try {
+        const songId = nanoid();
+        console.log(`[QueueMusic] Generating track ${position}: ${concept.title}`);
 
-      // a. Prompt & Lyrics Generation
-      const promptResponse = await ai.models.generateContent({
-        model: MODELS.PRO,
-        contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
-        config: { 
-          responseMimeType: 'application/json',
-          systemInstruction: SYSTEM_INSTRUCTION_PROMPT 
+        // a. Prompt & Lyrics Generation
+        const promptResponse = await ai.models.generateContent({
+          model: MODELS.PRO,
+          contents: `Concept: ${JSON.stringify(concept)}\nSound Profile: ${JSON.stringify(sound_profile)}`,
+          config: { 
+            responseMimeType: 'application/json',
+            systemInstruction: SYSTEM_INSTRUCTION_PROMPT 
+          }
+        });
+        
+        const responseText = promptResponse.text?.trim() || "{}";
+        const { lyrics: proLyrics = "", lyria_prompt = "" } = JSON.parse(responseText);
+
+        if (!proLyrics || !lyria_prompt) {
+          throw new Error('Failed to generate lyrics or prompt for queue track');
         }
-      });
-      
-      const responseText = promptResponse.text?.trim() || "{}";
-      const { lyrics: proLyrics = "", lyria_prompt = "" } = JSON.parse(responseText);
 
-      // b. Music & Cover in Parallel
-      const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
+        // b. Music & Cover in Parallel
+        const coverPrompt = `Album cover art for "${concept.title}", a ${concept.genre} track. ${concept.mood} atmosphere.\nMinimal, editorial. Black and white with one accent color.\nNo faces. No text. Square format.\nStyle: abstract, modern, influenced by ${concept.genre} aesthetics`;
 
-      const [musicResponse, coverResponse] = await Promise.all([
-        ai.models.generateContent({
-          model: MODELS.LYRIA,
-          contents: `Prompt: ${lyria_prompt}\nLyrics: ${proLyrics}\n\nCreate a song between 2 minutes 45 seconds and 3 minutes long. Ensure you return the raw lyrics in the TEXT response modality.`,
-          config: { responseModalities: ["AUDIO", "TEXT"] }
-        }),
-        ai.models.generateContent({
-          model: MODELS.NANO_BANANA,
-          contents: coverPrompt,
-        })
-      ]);
+        const [musicResponse, coverResponse] = await Promise.all([
+          ai.models.generateContent({
+            model: MODELS.LYRIA,
+            contents: `Prompt: ${lyria_prompt}\nLyrics: ${proLyrics}\n\nCreate a song about 2 minutes long. Ensure you return the raw lyrics in the TEXT response modality.`,
+            config: { responseModalities: ["AUDIO", "TEXT"] }
+          }),
+          ai.models.generateContent({
+            model: MODELS.NANO_BANANA,
+            contents: coverPrompt,
+          })
+        ]);
 
-      // Extract Music
-      let audioBuffer: Buffer | null = null;
-      let lyriaLyrics = '';
-      const mCandidate = musicResponse.candidates?.[0];
-      if (mCandidate?.content?.parts) {
-        for (const part of mCandidate.content.parts) {
-          if (part.text) lyriaLyrics += part.text + '\n';
-          if (part.inlineData && part.inlineData.mimeType?.startsWith('audio/') && part.inlineData.data) {
-            audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+        // Extract Music
+        let audioBuffer: Buffer | null = null;
+        let lyriaLyrics = '';
+        const mCandidate = musicResponse.candidates?.[0];
+        if (mCandidate?.content?.parts) {
+          for (const part of mCandidate.content.parts) {
+            if (part.text) lyriaLyrics += part.text + '\n';
+            if (part.inlineData && part.inlineData.mimeType?.startsWith('audio/') && part.inlineData.data) {
+              audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+            }
           }
         }
-      }
 
-      if (!proLyrics.trim()) {
-        console.warn("No lyrics generated by Pro for", concept.title);
-      }
+        if (!audioBuffer) {
+          throw new Error('No audio generated for queue track');
+        }
 
-      // Extract Cover
-      let imageBuffer: Buffer | null = null;
-      let imageExt = 'jpg';
-      let imageMime = 'image/jpeg';
-      const cCandidate = coverResponse.candidates?.[0];
-      if (cCandidate?.content?.parts) {
-        for (const part of cCandidate.content.parts) {
-          if (part.inlineData && part.inlineData.mimeType?.startsWith('image/') && part.inlineData.data) {
-            imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-            imageMime = part.inlineData.mimeType;
-            imageExt = imageMime.split('/')[1] || 'jpg';
+        // Extract Cover
+        let imageBuffer: Buffer | null = null;
+        let imageExt = 'jpg';
+        let imageMime = 'image/jpeg';
+        const cCandidate = coverResponse.candidates?.[0];
+        if (cCandidate?.content?.parts) {
+          for (const part of cCandidate.content.parts) {
+            if (part.inlineData && part.inlineData.mimeType?.startsWith('image/') && part.inlineData.data) {
+              imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+              imageMime = part.inlineData.mimeType;
+              imageExt = imageMime.split('/')[1] || 'jpg';
+            }
           }
         }
-      }
 
-      // Upload files
-      let audioUrl = null;
-      if (audioBuffer) {
-        const { error: auErr } = await supabase.storage
-          .from('audio')
-          .upload(`${userId}/${songId}.mp3`, audioBuffer, { contentType: 'audio/mpeg', upsert: true });
-        if (!auErr) {
-          const { data: uData } = supabase.storage.from('audio').getPublicUrl(`${userId}/${songId}.mp3`);
-          audioUrl = uData.publicUrl;
+        // Upload files
+        let audioUrl = null;
+        if (audioBuffer) {
+          const { error: auErr } = await supabase.storage
+            .from('audio')
+            .upload(`${userId}/${songId}.mp3`, audioBuffer, { contentType: 'audio/mpeg', upsert: true });
+          if (!auErr) {
+            const { data: uData } = supabase.storage.from('audio').getPublicUrl(`${userId}/${songId}.mp3`);
+            audioUrl = uData.publicUrl;
+          }
         }
-      }
 
-      let coverUrl = null;
-      if (imageBuffer) {
-        const { error: cuErr } = await supabase.storage
-          .from('covers')
-          .upload(`${userId}/${songId}.${imageExt}`, imageBuffer, { contentType: imageMime, upsert: true });
-        if (!cuErr) {
-          const { data: uData } = supabase.storage.from('covers').getPublicUrl(`${userId}/${songId}.${imageExt}`);
-          coverUrl = uData.publicUrl;
+        let coverUrl = null;
+        if (imageBuffer) {
+          const { error: cuErr } = await supabase.storage
+            .from('covers')
+            .upload(`${userId}/${songId}.${imageExt}`, imageBuffer, { contentType: imageMime, upsert: true });
+          if (!cuErr) {
+            const { data: uData } = supabase.storage.from('covers').getPublicUrl(`${userId}/${songId}.${imageExt}`);
+            coverUrl = uData.publicUrl;
+          }
         }
+
+        // 5. Store with status='queued', queue_position
+        const newSong: Partial<Song> = {
+          id: songId,
+          user_id: userId,
+          title: concept.title,
+          genre: concept.genre,
+          mood: concept.mood,
+          bpm: concept.bpm,
+          vibe: moodHint ? moodHint : concept.mood,
+          lyria_prompt: lyria_prompt,
+          lyrics: proLyrics.trim(),
+          audio_url: audioUrl,
+          cover_url: coverUrl,
+          status: 'ready',
+          queue_position: position,
+          concept_json: concept,
+          profile_snapshot: sound_profile,
+          is_public: false,
+          play_count: 0,
+          resurface: false,
+        };
+
+        await supabase.from('songs').insert([newSong]);
+        console.log(`[QueueMusic] Finished track ${position}`);
+      } catch (err) {
+        console.error(`[QueueMusic] Failed to generate track ${position}:`, err);
+        // Continue with other tracks
       }
-
-      // 5. Store with status='queued', queue_position
-      const newSong: Partial<Song> = {
-        id: songId,
-        user_id: userId,
-        title: concept.title,
-        genre: concept.genre,
-        mood: concept.mood,
-        bpm: concept.bpm,
-        vibe: moodHint ? moodHint : concept.mood,
-        lyria_prompt: lyria_prompt,
-        lyrics: proLyrics.trim(),
-        audio_url: audioUrl,
-        cover_url: coverUrl,
-        status: position === 1 ? 'ready' : 'queued',
-        queue_position: position,
-        concept_json: concept,
-        profile_snapshot: sound_profile,
-        is_public: false,
-        play_count: 0,
-        resurface: false,
-      };
-
-      await supabase.from('songs').insert([newSong]);
     };
 
-    // Process all 3 in parallel
-    await Promise.all(selectedConcepts.map((concept, index) => generateTrack(concept, index + 1)));
+    // Process tracks. Sequential is safer for rate limits and timeouts on Vercel
+    for (let i = 0; i < selectedConcepts.length; i++) {
+        await generateTrack(selectedConcepts[i], i + 1);
+    }
 
     // 6. Return queued count
-    return NextResponse.json({ queued: 3 });
+    return NextResponse.json({ queued: selectedConcepts.length });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating queue:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }

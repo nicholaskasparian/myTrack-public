@@ -136,7 +136,8 @@ export default function GeneratePage() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to generate music');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate music');
       }
       
       const data = await response.json();
@@ -150,9 +151,9 @@ export default function GeneratePage() {
       
       // Initialize an empty queue to be populated by the backend or subsequent calls
       setQueue([]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating:', error);
-      alert('Failed to generate your song. Please try again.');
+      alert(`Failed to generate your song: ${error.message || 'Please try again.'}`);
       setStep('ideas');
     }
   };
