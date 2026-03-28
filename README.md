@@ -1,3 +1,13 @@
+myTrack - Music made for you, not for an algorithm.
+
+Tech Stack - 
+Supabase (DB for storing taste profiles and songs)
+Gemini APIs (Embedding 2 for semantic search, 3 flash for idea creation, 3.1 pro preview for prompt refinement and lyric generation, **Lyria 3 Pro** for song generation, **Nano Banana 2** for album cover generation)
+Clerk (Auth, Spotify connection)
+
+**How it works**
+Basiclly, it analyzes ur past spotify history and creats a taste profile for u. then whenever u join main feed, gemini 3 
+
 ```mermaid
 flowchart LR
     U[User] --> A[Sign in with Clerk]
