@@ -2,75 +2,9 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import type { Song } from '../lib/types';
-import { shouldSkipLyricLine } from '../lib/lyrics';
+import { parseTimedLyrics } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
-
-type LyricLine = { time: number; text: string; isSection?: boolean };
-
-// Parse lyrics line-by-line — no destructive pre-replacement that corrupts timestamps.
-// Handles: [mm:ss], [mm:ss.ms], inline [mm:ss] text, Lyria [15.0:], and [Section] tags.
-function parseLRC(lrcText: string): LyricLine[] {
-  const normalized = lrcText.replace(/\r\n?/g, '\n').replace(/\\n/g, '\n');
-  const lines = normalized.split('\n').map(l => l.trim());
-
-  // [mm:ss] or [mm:ss.ms], optionally followed by inline lyric text
-  const mmssRegex = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\](.*)$/;
-  // Lyria-style [15.0:] timestamps
-  const lyriaTimeRegex = /^\[(\d+(?:\.\d+)?):\](.*)$/;
-  // Section tags: [Chorus], [Verse 1], [Bridge], etc.
-  const sectionRegex = /^\[([A-Za-z][A-Za-z0-9 ]*)\]$/;
-  const metaRegex = /^(music|bpm|duration_secs|good_crop):/i;
-
-  const result: LyricLine[] = [];
-  let currentTime = 0;
-
-  for (const line of lines) {
-    if (!line) continue;
-    if (metaRegex.test(line)) continue;
-    // Skip Lyria internal structural tags [[A0]]
-    if (/^\[\[.*\]\]$/.test(line)) continue;
-
-    // mm:ss timestamp (with optional inline lyric)
-    const mmssMatch = mmssRegex.exec(line);
-    if (mmssMatch) {
-      currentTime = parseInt(mmssMatch[1], 10) * 60 + parseFloat(mmssMatch[2]);
-      const inline = mmssMatch[3].trim();
-      if (inline && !shouldSkipLyricLine(inline)) {
-        result.push({ time: currentTime, text: inline });
-      }
-      continue;
-    }
-
-    // Lyria [15.0:] timestamp (with optional inline lyric)
-    const lyriaMatch = lyriaTimeRegex.exec(line);
-    if (lyriaMatch) {
-      currentTime = parseFloat(lyriaMatch[1]);
-      const inline = lyriaMatch[2].trim();
-      if (inline && !shouldSkipLyricLine(inline)) {
-        result.push({ time: currentTime, text: inline });
-      }
-      continue;
-    }
-
-    // Section tag — kept for visual context but excluded from sync logic
-    if (sectionRegex.test(line)) {
-      result.push({ time: currentTime, text: line, isSection: true });
-      continue;
-    }
-
-    if (shouldSkipLyricLine(line)) continue;
-
-    // Regular lyric line
-    result.push({ time: currentTime, text: line });
-  }
-
-  if (result.length === 0) {
-    return [{ time: 0, text: normalized.trim() }];
-  }
-
-  return result.sort((a, b) => a.time - b.time);
-}
 
 export default function LyricsPlayer({
   song,
@@ -106,7 +40,7 @@ export default function LyricsPlayer({
   }, [song]);
 
   const lyricsText = song.lyrics || "No lyrics available.";
-  const parsedLyrics = useMemo(() => parseLRC(lyricsText), [lyricsText]);
+  const parsedLyrics = useMemo(() => parseTimedLyrics(lyricsText), [lyricsText]);
 
   const lastTargetLineRef = useRef<number>(-1);
 
