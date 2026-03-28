@@ -11,6 +11,8 @@ function parseLRC(lrcText: string) {
   const lrcRegex = /\[(\d+):(\d+(?:\.\d+)?)\](.*)/;
   // Lyria/Timestamp format: [0:00 - 0:10] or [00:00]
   const timestampRegex = /\[(\d+):(\d+)(?:\s*-\s*\d+:\d+)?\](.*)/;
+  // Lyria text output: [15.0:]
+  const lyriaRegex = /\[(\d+(?:\.\d+)?):\](.*)/;
   
   let hasTags = false;
   let lastTime = 0;
@@ -18,6 +20,12 @@ function parseLRC(lrcText: string) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
+    
+    // Skip Lyria structural tags like [[A0]]
+    if (/^\[\[.*\]\]$/.test(trimmed)) continue;
+    
+    // Skip mosic, bpm, duration_secs
+    if (/^(mosic|bpm|duration_secs|good_crop):\s*[\d.]+/.test(trimmed)) continue;
 
     let match = lrcRegex.exec(trimmed);
     if (match) {
@@ -40,10 +48,25 @@ function parseLRC(lrcText: string) {
       parsed.push({ time: lastTime, text: text || '♪' });
       continue;
     }
+    
+    match = lyriaRegex.exec(trimmed);
+    if (match) {
+      hasTags = true;
+      const seconds = parseFloat(match[1]);
+      const text = match[2].trim();
+      lastTime = seconds;
+      parsed.push({ time: lastTime, text: text || '♪' });
+      continue;
+    }
 
     // If no match but we have tags, this is a continuation of the previous timestamp
     if (hasTags) {
-      parsed.push({ time: lastTime, text: trimmed });
+      // Clean up [:] from Lyria format
+      let cleanText = trimmed;
+      if (cleanText.startsWith('[:]')) {
+        cleanText = cleanText.substring(3).trim();
+      }
+      parsed.push({ time: lastTime, text: cleanText });
     }
   }
 

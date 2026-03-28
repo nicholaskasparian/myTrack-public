@@ -29,6 +29,7 @@ export default function AudioPlayer({
     
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
+      audio.play().catch(e => console.log('Auto-play prevented:', e));
     };
     
     const handleEnded = () => {
@@ -37,13 +38,20 @@ export default function AudioPlayer({
       if (onEnded) onEnded();
     };
 
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
     };
   }, [onEnded, onTimeUpdate]);
@@ -55,7 +63,6 @@ export default function AudioPlayer({
     } else {
       audioRef.current.play();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
