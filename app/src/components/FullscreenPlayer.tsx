@@ -65,6 +65,9 @@ function parseLRC(lrcText: string) {
     if (cleanText.startsWith('[:]')) {
       cleanText = cleanText.substring(3).trim();
     }
+    // Drop non-lyric SFX/stage-direction lines from Lyria output
+    if (/^(low|high|soft|gentle|deep|distant|subtle)?\s*(hum|humming|sfx|sound effect|ambient noise|fx)\b/i.test(cleanText)) continue;
+    if (/^(music|bpm|duration_secs|good_crop):/i.test(cleanText)) continue;
     
     if (hasTags) {
       parsed.push({ time: lastTime, text: cleanText });
@@ -264,14 +267,14 @@ export default function FullscreenPlayer({
       position: 'fixed',
       top: 0,
       left: 0,
-      width: '100vw',
-      height: '100vh',
+      right: 0,
+      bottom: 0,
       zIndex: 9999,
       display: 'flex',
       flexDirection: 'column',
-      background: 'rgba(0, 0, 0, 0.7)',
-      color: 'white',
-      fontFamily: 'var(--font-ibm-plex-sans)',
+      background: 'radial-gradient(120% 120% at 15% 0%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 40%), linear-gradient(180deg, rgba(16, 19, 26, 0.94), rgba(16, 19, 26, 0.98))',
+      color: 'var(--accent-inverse)',
+      fontFamily: "Inter, 'IBM Plex Sans', 'SF Pro Text', 'Segoe UI', system-ui, -apple-system, sans-serif",
       overflow: 'hidden',
       animation: 'glassFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards'
     }}>
@@ -354,9 +357,10 @@ export default function FullscreenPlayer({
           <div style={{ 
             width: '100%', 
             aspectRatio: '1 / 1', 
-            borderRadius: '0', 
+            borderRadius: '16px', 
             overflow: 'hidden',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.18)',
             background: 'var(--ink)'
           }}>
             {song.cover_url ? (
@@ -521,8 +525,8 @@ export default function FullscreenPlayer({
                   key={idx} 
                   onClick={() => handleLyricClick(idx)}
                   style={{ 
-                    fontSize: '48px', 
-                    fontWeight: 'bold', 
+                     fontSize: '42px', 
+                     fontWeight: 'bold', 
                     lineHeight: '1.2',
                     cursor: 'pointer',
                     transition: 'color 0.3s ease, transform 0.3s ease',
