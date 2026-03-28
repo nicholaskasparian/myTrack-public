@@ -22,6 +22,7 @@ export default function GeneratePage() {
   const [rating, setRating] = useState(5)
   const [queue, setQueue] = useState<Song[]>([])
   const [isQueueGenerating, setIsQueueGenerating] = useState(false)
+  const [isWaitingForQueueStart, setIsWaitingForQueueStart] = useState(false)
   const [showLyricsPlayer, setShowLyricsPlayer] = useState(false)
   const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null)
   const [playlists, setPlaylists] = useState<any[]>([])
@@ -58,15 +59,30 @@ export default function GeneratePage() {
     return () => clearInterval(interval)
   }, [step, song?.id, isQueueGenerating])
 
+  useEffect(() => {
+    if (!isWaitingForQueueStart || queue.length === 0 || song) return
+    const firstQueuedSong = queue[0]
+    setSong(firstQueuedSong)
+    setQueue((prev) => prev.slice(1))
+    setShowRating(false)
+    setHasEnded(false)
+    setShowLyricsPlayer(true)
+    setIsWaitingForQueueStart(false)
+  }, [isWaitingForQueueStart, queue, song])
+
   const triggerBackgroundGeneration = async () => {
     if (isQueueGenerating) return
     setIsQueueGenerating(true)
     try {
-      await fetch('/api/generate/queue', {
+      const response = await fetch('/api/generate/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moodHint }),
       })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to generate queue')
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -133,6 +149,15 @@ export default function GeneratePage() {
       setQueue(queue.slice(1))
       setShowRating(false)
       setHasEnded(false)
+      setShowLyricsPlayer(true)
+      setIsWaitingForQueueStart(false)
+    } else {
+      setSong(null)
+      setShowLyricsPlayer(false)
+      setShowRating(false)
+      setHasEnded(false)
+      setIsWaitingForQueueStart(true)
+      triggerBackgroundGeneration()
     }
   }
 

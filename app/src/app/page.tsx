@@ -2,9 +2,9 @@ import { auth } from '@clerk/nextjs/server'
 import Link from 'next/link'
 
 const metrics = [
-  { value: '7x', label: 'faster concept to first track' },
-  { value: '17,740+', label: 'sessions tuned to user profiles' },
-  { value: '30,739+', label: 'songs generated in active libraries' },
+  { value: '≈30s', label: 'to create a song' },
+  { value: '∞', label: 'possibilities' },
+  { value: '1:1', label: 'fine-tuned feed just for you' },
 ]
 
 export default async function LandingPage() {
@@ -28,7 +28,7 @@ export default async function LandingPage() {
         </div>
       </nav>
 
-      <main className="surface surface-strong" style={{ padding: 'clamp(1.2rem, 3vw, 2.6rem)', borderRadius: '24px', overflow: 'hidden', position: 'relative' }}>
+      <main className="surface surface-strong landing-shell" style={{ padding: 'clamp(1.2rem, 3vw, 2.6rem)', borderRadius: '24px', overflow: 'hidden', position: 'relative' }}>
         <div
           aria-hidden
           style={{
@@ -41,35 +41,35 @@ export default async function LandingPage() {
         />
 
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '1.6rem' }}>
-          <span className="kicker">Backed by listening data + adaptive generation</span>
+          <span className="kicker landing-animate" style={{ animationDelay: '80ms' }}>Backed by listening data + adaptive generation</span>
 
-          <h1 style={{ fontSize: 'clamp(2.3rem, 6.6vw, 5rem)', lineHeight: 0.95, letterSpacing: '-0.04em', maxWidth: '16ch' }}>
+          <h1 className="landing-animate" style={{ animationDelay: '140ms', fontSize: 'clamp(2.3rem, 6.6vw, 5rem)', lineHeight: 0.95, letterSpacing: '-0.04em', maxWidth: '16ch' }}>
             We rebuilt music generation
             <br />
             around your taste graph.
           </h1>
 
-          <p style={{ color: 'var(--ink-muted)', fontSize: 'clamp(1rem, 1.6vw, 1.3rem)', maxWidth: '56ch' }}>
+          <p className="landing-animate" style={{ animationDelay: '200ms', color: 'var(--ink-muted)', fontSize: 'clamp(1rem, 1.6vw, 1.3rem)', maxWidth: '56ch' }}>
             A premium adaptive feed: Spotify-informed profile analysis, continuous queueing, and instant feedback loops that keep every next track relevant.
           </p>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.7rem' }}>
+          <div className="landing-animate" style={{ animationDelay: '260ms', display: 'flex', flexWrap: 'wrap', gap: '0.7rem' }}>
             <span className="pill">profile weighted</span>
             <span className="pill">continuous queue</span>
             <span className="pill">re-surface logic</span>
             <span className="pill">playlist-ready output</span>
           </div>
 
-          <div className="kpi-grid">
-            {metrics.map((metric) => (
-              <div className="kpi-card" key={metric.label}>
+          <div className="kpi-grid landing-animate" style={{ animationDelay: '320ms' }}>
+            {metrics.map((metric, index) => (
+              <div className="kpi-card" style={{ animationDelay: `${360 + index * 80}ms` }} key={metric.label}>
                 <div className="kpi-value">{metric.value}</div>
                 <div className="kpi-label">{metric.label}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
+          <div className="landing-animate" style={{ animationDelay: '420ms', display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
             <Link href={userId ? '/dashboard' : '/sign-up'} className="btn btn-primary">
               Enter myTrack
             </Link>
