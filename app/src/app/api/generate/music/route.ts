@@ -4,6 +4,7 @@ import ai, { MODELS, HarmCategory, HarmBlockThreshold } from '../../../../lib/ge
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { Concept, SoundProfile, Song } from '../../../../lib/types';
 import { nanoid } from 'nanoid';
+import { sanitizeLyrics } from '../../../../lib/lyrics';
 
 const SYSTEM_INSTRUCTION_PROMPT = `You are a creative director and expert prompt engineer. Given a song concept and a user's Sound Profile, write the complete lyrics and a single Lyria generation prompt that will produce a high-quality, personalized music track.
 
@@ -20,16 +21,6 @@ Return:
   "lyrics": "Lyrics with [mm:ss] timestamps for each section",
   "lyria_prompt": "80-150 word technical description of the music. Start with the primary genre and tempo. Describe instrumentation concretely. Specify mood and energy arc. Include production style cues. Integrate themes from the lyrics."
 }`;
-
-function sanitizeLyrics(raw: string) {
-  return raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => !/^(low|high|soft|gentle|deep|distant|subtle)?\s*(hum|humming|sfx|sound effect|ambient noise|fx)\b/i.test(line))
-    .filter((line) => !/^(music|bpm|duration_secs|good_crop):/i.test(line))
-    .join('\n');
-}
 
 export const maxDuration = 300; // Vercel timeout increased for long music gen
 

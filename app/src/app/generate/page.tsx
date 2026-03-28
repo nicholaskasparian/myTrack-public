@@ -8,6 +8,8 @@ import AudioPlayer from '../../components/AudioPlayer'
 import FullscreenPlayer from '../../components/FullscreenPlayer'
 import RatingSlider from '../../components/RatingSlider'
 
+const LOADING_PULSE_DURATION_MS = 420
+
 export default function GeneratePage() {
   const router = useRouter()
 
@@ -35,7 +37,7 @@ export default function GeneratePage() {
 
   useEffect(() => {
     if (!['prompting', 'lyria', 'cover', 'uploading'].includes(step)) return
-    const interval = setInterval(() => setLoadingPulse((prev) => (prev + 1) % 3), 420)
+    const interval = setInterval(() => setLoadingPulse((prev) => (prev + 1) % 3), LOADING_PULSE_DURATION_MS)
     return () => clearInterval(interval)
   }, [step])
 

@@ -2,6 +2,9 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import type { Song } from '../lib/types';
+import { shouldSkipLyricLine } from '../lib/lyrics';
+
+const LYRICS_FONT_SIZE = '48px';
 
 function parseLRC(lrcText: string) {
   // 1. Add newlines before AND after any timestamp tag
@@ -65,8 +68,7 @@ function parseLRC(lrcText: string) {
       cleanText = cleanText.substring(3).trim();
     }
     // Drop non-lyric SFX/stage-direction lines from Lyria output
-    if (/^(low|high|soft|gentle|deep|distant|subtle)?\s*(hum|humming|sfx|sound effect|ambient noise|fx)\b/i.test(cleanText)) continue;
-    if (/^(music|bpm|duration_secs|good_crop):/i.test(cleanText)) continue;
+    if (shouldSkipLyricLine(cleanText)) continue;
     
     if (hasTags) {
       parsed.push({ time: lastTime, text: cleanText });
@@ -457,7 +459,7 @@ export default function LyricsPlayer({
                   key={idx} 
                   onClick={() => handleLyricClick(idx)}
                    style={{ 
-                     fontSize: '48px', 
+                     fontSize: LYRICS_FONT_SIZE, 
                      fontWeight: 'bold', 
                      lineHeight: '1.2',
                      whiteSpace: 'pre-line',
