@@ -374,9 +374,12 @@ export default function GeneratePage() {
                   <button
                     onClick={() => {
                       if (song) fetch(`/api/songs/${song.id}/play`, { method: 'POST' }).catch(console.error)
-                      setSong(qSong)
-                      setQueue((prev) => prev.filter((s) => s.id !== qSong.id))
-                      setIsWaitingForQueueStart(false)
+                      
+                      const targetIdx = queue.findIndex(s => s.id === qSong.id);
+                      const remainingQueue = queue.slice(targetIdx + 1);
+                      
+                      promoteQueuedSong(qSong)
+                      setQueue(remainingQueue)
                     }}
                     className="btn btn-secondary"
                   >

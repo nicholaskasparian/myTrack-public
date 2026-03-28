@@ -5,10 +5,17 @@ import type { Song } from '../lib/types';
 import { shouldSkipLyricLine } from '../lib/lyrics';
 
 const LYRICS_FONT_SIZE = '48px';
+const LRC_INLINE_PREFIX_TAG = '[:]';
+const ABBREVIATION_CONTEXT_LENGTH = 12;
+const ABBREVIATION_TAIL_PATTERN = /(?:\b[A-Z]\.|(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|vs|etc))\.$/;
 
 function parseLRC(lrcText: string) {
+  const normalizedText = lrcText
+    .replace(/\r\n?/g, '\n')
+    .replace(/\\n/g, '\n');
+
   // 1. Add newlines before AND after any timestamp tag
-  let text = lrcText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
+  let text = normalizedText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
   
   // 2. Add newlines before AND after Lyria timestamp tags [15.0:]
   text = text.replace(/(\[\d+(?:\.\d+)?:\])/g, '\n$1\n');
@@ -16,8 +23,13 @@ function parseLRC(lrcText: string) {
   // 3. Add newlines before AND after structural tags
   text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
 
-  // 4. Split sentences into separate lines if the AI clumped them together in a paragraph
-  text = text.replace(/([.?!])\s+(?=[A-Z])/g, '$1\n');
+  // 4. Split sentence-clumped lyric paragraphs into readable lyric lines,
+  // while avoiding common abbreviation/acronym patterns.
+  text = text.replace(/([.?!])\s+(?=[A-Z])/g, (match, punctuation, offset, source) => {
+    const precedingContext = source.slice(Math.max(0, offset - ABBREVIATION_CONTEXT_LENGTH), offset + 1);
+    if (ABBREVIATION_TAIL_PATTERN.test(precedingContext)) return match;
+    return `${punctuation}\n `;
+  });
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
@@ -81,39 +93,27 @@ function parseLRC(lrcText: string) {
 
   if (parsed.length === 0) {
     // Fallback if no tags at all
-    return lrcText.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => ({ time: 0, text: l }));
+    return normalizedText
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+      .map((line) => (line.startsWith(LRC_INLINE_PREFIX_TAG) ? line.substring(LRC_INLINE_PREFIX_TAG.length).trim() : line))
+      .filter((line) => !shouldSkipLyricLine(line))
+      .map((line) => ({ time: 0, text: line }));
   }
 
-  // Keep lines separate and spread same-timestamp runs so each line can sync independently
-  const sorted = [...parsed].sort((a, b) => a.time - b.time);
-  const normalized: { time: number; text: string }[] = [];
-  const DEFAULT_LINE_SECONDS = 2;
-
-  let currentIndex = 0;
-  while (currentIndex < sorted.length) {
-    const startTime = sorted[currentIndex].time;
-    let runEndIndex = currentIndex;
-    while (runEndIndex + 1 < sorted.length && sorted[runEndIndex + 1].time === startTime) {
-      runEndIndex++;
+  // Group lines with same timestamp to avoid overlapping
+  const grouped: { time: number; text: string }[] = [];
+  for (const entry of parsed) {
+    const existing = grouped.find(g => g.time === entry.time);
+    if (existing) {
+      existing.text += '\n' + entry.text;
+    } else {
+      grouped.push(entry);
     }
-
-    const runCount = runEndIndex - currentIndex + 1;
-    const nextTime = runEndIndex + 1 < sorted.length ? sorted[runEndIndex + 1].time : null;
-    const hasFutureGap = nextTime !== null && nextTime > startTime;
-    // Evenly distribute the available gap so each line in this same-timestamp run advances in order.
-    const step = hasFutureGap ? (nextTime - startTime) / runCount : DEFAULT_LINE_SECONDS;
-
-    for (let lineOffset = 0; lineOffset < runCount; lineOffset++) {
-      normalized.push({
-        time: startTime + step * lineOffset,
-        text: sorted[currentIndex + lineOffset].text
-      });
-    }
-
-    currentIndex = runEndIndex + 1;
   }
 
-  return normalized;
+  return grouped.sort((a, b) => a.time - b.time);
 }
 
 export default function LyricsPlayer({
