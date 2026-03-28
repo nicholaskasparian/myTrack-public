@@ -1,7 +1,37 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import type { Song } from '../lib/types';
+
+function parseLRC(lrcText: string) {
+  const lines = lrcText.split('\n');
+  const parsed: { time: number; text: string }[] = [];
+  const regex = /\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)/;
+  
+  let hasTags = false;
+  for (const line of lines) {
+    const match = regex.exec(line);
+    if (match) {
+      hasTags = true;
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseFloat(match[2]);
+      const text = match[3].trim();
+      parsed.push({ time: minutes * 60 + seconds, text });
+    }
+  }
+
+  // Fallback if no tags are present
+  if (!hasTags) {
+    return lines
+      .filter(line => line.trim().length > 0)
+      .map((line) => ({
+        time: 0,
+        text: line.trim()
+      }));
+  }
+
+  return parsed;
+}
 
 export default function LyricsPlayer({
   song,
@@ -22,7 +52,7 @@ export default function LyricsPlayer({
 
   // Parse lyrics
   const lyricsText = song.lyrics || "No lyrics available.";
-  const lines = lyricsText.split('\n').filter(line => line.trim().length > 0);
+  const parsedLyrics = useMemo(() => parseLRC(lyricsText), [lyricsText]);
 
   const lastTargetLineRef = useRef<number>(-1);
 
@@ -32,10 +62,17 @@ export default function LyricsPlayer({
     
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
+      
       // Auto-scroll lyrics
-      if (scrollRef.current && duration > 0 && lines.length > 0) {
-        const progress = audio.currentTime / duration;
-        const targetLine = Math.floor(progress * lines.length);
+      if (scrollRef.current && parsedLyrics.length > 0) {
+        let targetLine = -1;
+        for (let i = parsedLyrics.length - 1; i >= 0; i--) {
+          if (audio.currentTime >= parsedLyrics[i].time) {
+            targetLine = i;
+            break;
+          }
+        }
+        if (targetLine === -1) targetLine = 0;
         
         if (targetLine !== lastTargetLineRef.current) {
           lastTargetLineRef.current = targetLine;
@@ -78,7 +115,7 @@ export default function LyricsPlayer({
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [duration, lines.length, onNext]);
+  }, [parsedLyrics, onNext]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -99,8 +136,8 @@ export default function LyricsPlayer({
   };
 
   const handleLyricClick = (idx: number) => {
-    if (!audioRef.current || duration === 0 || lines.length === 0) return;
-    const newTime = (idx / lines.length) * duration;
+    if (!audioRef.current || parsedLyrics.length === 0) return;
+    const newTime = parsedLyrics[idx].time;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -113,7 +150,17 @@ export default function LyricsPlayer({
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const activeLineIndex = duration > 0 ? Math.floor((currentTime / duration) * lines.length) : 0;
+  
+  let activeLineIndex = -1;
+  for (let i = parsedLyrics.length - 1; i >= 0; i--) {
+    if (currentTime >= parsedLyrics[i].time) {
+      activeLineIndex = i;
+      break;
+    }
+  }
+  if (activeLineIndex === -1 && parsedLyrics.length > 0) {
+    activeLineIndex = 0;
+  }
 
   return (
     <>
@@ -326,12 +373,12 @@ export default function LyricsPlayer({
           flexDirection: 'column',
           gap: '32px'
         }} ref={scrollRef}>
-          {lines.length === 0 ? (
+          {parsedLyrics.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '32px', fontWeight: 'bold' }}>
               No lyrics available for this track.
             </div>
           ) : (
-            lines.map((line, idx) => {
+            parsedLyrics.map((line, idx) => {
               const isActive = idx === activeLineIndex;
               const isPast = idx < activeLineIndex;
               return (
@@ -355,7 +402,7 @@ export default function LyricsPlayer({
                     if (!isActive) e.currentTarget.style.color = isPast ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)';
                   }}
                 >
-                  {line}
+                  {line.text || '♪'}
                 </div>
               );
             })
