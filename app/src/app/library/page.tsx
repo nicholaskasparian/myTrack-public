@@ -5,6 +5,7 @@ import SongCard from '../../components/SongCard';
 import type { Song } from '../../lib/types';
 import Link from 'next/link';
 import AudioPlayer from '../../components/AudioPlayer';
+import FullscreenPlayer from '../../components/FullscreenPlayer';
 
 export default function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -18,6 +19,8 @@ export default function LibraryPage() {
   const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
 
   // Debounce ref
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -138,6 +141,29 @@ export default function LibraryPage() {
     }
   };
 
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim()) return;
+    setIsCreatingPlaylist(true);
+    try {
+      const res = await fetch('/api/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newPlaylistName })
+      });
+      if (res.ok) {
+        const newPlaylist = await res.json();
+        setPlaylists([...playlists, newPlaylist]);
+        setNewPlaylistName('');
+        // optionally auto-add song
+        await selectPlaylist(newPlaylist.id);
+      }
+    } catch (err) {
+      console.error('Error creating playlist', err);
+    } finally {
+      setIsCreatingPlaylist(false);
+    }
+  };
+
   const selectPlaylist = async (playlistId: string) => {
     try {
       await fetch(`/api/playlists/${playlistId}/songs`, {
@@ -153,6 +179,22 @@ export default function LibraryPage() {
   };
 
   const displaySongs = searchResults !== null ? searchResults : songs;
+
+  const handleNext = () => {
+    if (!playingSong) return;
+    const idx = displaySongs.findIndex((s) => s.id === playingSong.id);
+    if (idx >= 0 && idx < displaySongs.length - 1) {
+      handlePlay(displaySongs[idx + 1]);
+    }
+  };
+
+  const handlePrev = () => {
+    if (!playingSong) return;
+    const idx = displaySongs.findIndex((s) => s.id === playingSong.id);
+    if (idx > 0) {
+      handlePlay(displaySongs[idx - 1]);
+    }
+  };
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', fontFamily: 'var(--font-ibm-plex-sans)' }}>
@@ -213,34 +255,15 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Sticky Player */}
+      {/* Fullscreen Player */}
       {playingSong && playingSong.audio_url && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: 'var(--card-bg)',
-          borderTop: '1px solid var(--border)',
-          padding: '0 2rem',
-          boxShadow: '0 -4px 12px rgba(0,0,0,0.05)',
-          zIndex: 100
-        }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '2rem' }}>
-            <div style={{ flex: '0 0 200px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {playingSong.title || 'Untitled'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <AudioPlayer src={playingSong.audio_url} />
-            </div>
-            <button 
-              onClick={() => setPlayingSong(null)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: '0.5rem', flexShrink: 0 }}
-            >
-              &times;
-            </button>
-          </div>
-        </div>
+        <FullscreenPlayer 
+          song={playingSong} 
+          onClose={() => setPlayingSong(null)}
+          onNext={handleNext}
+          onPrev={handlePrev}
+          onAddToPlaylist={openPlaylistModal}
+        />
       )}
 
       {/* Playlist Modal */}
@@ -249,16 +272,18 @@ export default function LibraryPage() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           background: 'rgba(247, 246, 242, 0.9)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 200
+          zIndex: 10000
         }}>
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: '400px' }}>
             <h3 style={{ margin: '0 0 1rem 0' }}>Add to Playlist</h3>
             {isLoadingPlaylists ? (
               <p>Loading playlists...</p>
             ) : playlists.length === 0 ? (
-              <p style={{ color: 'var(--ink-muted)' }}>No playlists found.</p>
+              <div style={{ marginBottom: '1rem' }}>
+                <p style={{ color: 'var(--ink-muted)' }}>No playlists found.</p>
+              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
                 {playlists.map(p => (
                   <button
                     key={p.id}
@@ -273,6 +298,31 @@ export default function LibraryPage() {
                 ))}
               </div>
             )}
+            
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <input 
+                type="text" 
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="New playlist name..."
+                style={{ flex: 1, padding: '10px', border: '1px solid var(--border)', fontFamily: 'inherit' }}
+              />
+              <button 
+                onClick={handleCreatePlaylist}
+                disabled={isCreatingPlaylist || !newPlaylistName.trim()}
+                style={{ 
+                  padding: '10px 16px', 
+                  background: 'var(--ink)', 
+                  color: 'var(--bg)', 
+                  border: 'none', 
+                  cursor: (isCreatingPlaylist || !newPlaylistName.trim()) ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  opacity: (isCreatingPlaylist || !newPlaylistName.trim()) ? 0.5 : 1
+                }}
+              >
+                Create
+              </button>
+            </div>
             <button 
               onClick={() => setAddingToPlaylist(null)}
               style={{ marginTop: '1rem', width: '100%', padding: '12px', background: 'var(--accent)', color: 'var(--accent-inverse)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}

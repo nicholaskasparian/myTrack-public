@@ -1,0 +1,42 @@
+--- app/src/components/LyricsPlayer.tsx
++++ app/src/components/LyricsPlayer.tsx
+@@ -40,11 +40,15 @@
+   song,
+   onClose,
+   onNext,
++  onPrev,
++  onAddToPlaylist
+ }: {
+   song: Song;
+   onClose?: () => void;
+   onNext?: () => void;
++  onPrev?: () => void;
++  onAddToPlaylist?: (songId: string) => void;
+ }) {
+   const audioRef = useRef<HTMLAudioElement>(null);
+   const trackRef = useRef<HTMLDivElement>(null);
+@@ -52,6 +56,22 @@
+   
+   const [isPlaying, setIsPlaying] = useState(false);
+   const [currentTime, setCurrentTime] = useState(0);
+   const [duration, setDuration] = useState(song.duration_seconds || 180);
++  const [rating, setRating] = useState<number>(song.rating || 0);
++
++  useEffect(() => {
++    setRating(song.rating || 0);
++  }, [song]);
++
++  const handleRate = async (val: number) => {
++    setRating(val);
++    try {
++      await fetch(`/api/songs/${song.id}/rate`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ rating: val }),
++      });
++    } catch (err) {
++      console.error('Error rating song', err);
++    }
++  };
+ 
+   // Parse lyrics

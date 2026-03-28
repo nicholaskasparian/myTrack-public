@@ -27,6 +27,8 @@ export default function GeneratePage() {
   const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
 
   const [hasEnded, setHasEnded] = useState(false);
 
@@ -43,6 +45,29 @@ export default function GeneratePage() {
       console.error('Failed to fetch playlists', err);
     } finally {
       setIsLoadingPlaylists(false);
+    }
+  };
+
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim()) return;
+    setIsCreatingPlaylist(true);
+    try {
+      const res = await fetch('/api/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newPlaylistName })
+      });
+      if (res.ok) {
+        const newPlaylist = await res.json();
+        setPlaylists([...playlists, newPlaylist]);
+        setNewPlaylistName('');
+        // optionally auto-add song
+        await selectPlaylist(newPlaylist.id);
+      }
+    } catch (err) {
+      console.error('Error creating playlist', err);
+    } finally {
+      setIsCreatingPlaylist(false);
     }
   };
 
@@ -480,7 +505,7 @@ export default function GeneratePage() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           background: 'rgba(247, 246, 242, 0.9)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 200
+          zIndex: 10000
         }}>
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: '400px' }}>
             <h3 style={{ margin: '0 0 1rem 0' }}>Add to Playlist</h3>
