@@ -12,6 +12,9 @@ function parseLRC(lrcText: string) {
   
   // 3. Add newlines before AND after structural tags
   text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
+
+  // 4. Split sentences into separate lines if the AI clumped them together in a paragraph
+  text = text.replace(/([.?!])\s+(?=[A-Z])/g, '$1\n');
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   

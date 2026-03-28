@@ -148,7 +148,8 @@ export default function GeneratePage() {
       setQueue(queue.slice(1));
       setShowRating(false);
       setHasEnded(false);
-      setShowLyricsPlayer(true);
+      // We purposefully DO NOT modify showLyricsPlayer here. 
+      // If they are in fullscreen, they stay in fullscreen. If not, they stay out.
     }
   };
 
@@ -416,15 +417,18 @@ export default function GeneratePage() {
               </div>
             </div>
 
-            <AudioPlayer 
-              key={song.id}
-              src={song.audio_url || ''} 
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={() => {
-                setShowRating(true);
-                setHasEnded(true);
-              }}
-            />
+            {/* Only render the main audio player if fullscreen is NOT open, to avoid dual-audio state conflict */}
+            {!showLyricsPlayer && (
+              <AudioPlayer 
+                key={song.id}
+                src={song.audio_url || ''} 
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={() => {
+                  setShowRating(true);
+                  setHasEnded(true);
+                }}
+              />
+            )}
 
             <div style={{ display: 'flex', gap: '16px', width: '100%', justifyContent: 'center' }}>
               <button 
@@ -449,7 +453,8 @@ export default function GeneratePage() {
                 onNext={() => {
                   setShowRating(true);
                   setHasEnded(true);
-                  setShowLyricsPlayer(false);
+                  // Trigger the next track seamlessly while staying in fullscreen mode
+                  handleNextTrack();
                 }} 
                 onAddToPlaylist={(songId) => openPlaylistModal(songId)}
               />
