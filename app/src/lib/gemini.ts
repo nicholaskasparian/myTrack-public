@@ -12,11 +12,11 @@ export const MODELS = {
   /** Full-song music generation, 2m45s–3m, 48kHz stereo */
   LYRIA: 'lyria-3-pro-preview',
   /** Song concept generation, vibe descriptions (cheap, fast) */
-  FLASH: 'gemini-3-flash',
+  FLASH: 'gemini-3-flash-preview',
   /** Full Lyria prompt engineering from chosen concept */
-  PRO: 'gemini-3.1-pro',
+  PRO: 'gemini-3.1-pro-preview',
   /** Cover art generation (accurate text + visual style) */
-  NANO_BANANA: 'nano-banana',
+  NANO_BANANA: 'nano-banana-pro-preview',
   /** Semantic embedding for library search */
-  EMBEDDING: 'text-embedding-002',
+  EMBEDDING: 'gemini-embedding-2-preview',
 } as const;
