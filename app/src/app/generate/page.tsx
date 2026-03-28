@@ -44,7 +44,7 @@ export default function GeneratePage() {
             .filter((s) => s.status === 'queued' && s.id !== song?.id)
             .sort((a, b) => (a.queue_position || 0) - (b.queue_position || 0))
           setQueue(queued)
-          if (queued.length < 2 && step === 'done' && !isQueueGenerating) startBackgroundGeneration()
+          if (queued.length < 2 && step === 'done' && !isQueueGenerating) tryStartBackgroundGeneration()
         }
       } catch (err) {
         console.error('Failed to fetch queue', err)
@@ -63,15 +63,19 @@ export default function GeneratePage() {
     // When playback is waiting and a new queued song arrives, promote it immediately to now-playing.
     if (!isWaitingForQueueStart || queue.length === 0 || song) return
     const firstQueuedSong = queue[0]
-    setSong(firstQueuedSong)
+    promoteQueuedSong(firstQueuedSong)
     setQueue((prev) => prev.slice(1))
+  }, [isWaitingForQueueStart, queue, song])
+
+  const promoteQueuedSong = (nextSong: Song) => {
+    setSong(nextSong)
     setShowRating(false)
     setHasEnded(false)
     setShowLyricsPlayer(true)
     setIsWaitingForQueueStart(false)
-  }, [isWaitingForQueueStart, queue, song])
+  }
 
-  const startBackgroundGeneration = async (): Promise<boolean> => {
+  const tryStartBackgroundGeneration = async (): Promise<boolean> => {
     if (isQueueGenerating) return false
     setIsQueueGenerating(true)
     try {
@@ -82,7 +86,7 @@ export default function GeneratePage() {
       })
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to generate queue')
+        throw new Error(err.error || `Failed to generate queue (status: ${response.status}). Please try again.`)
       }
       return true
     } catch (err) {
@@ -148,18 +152,14 @@ export default function GeneratePage() {
       const nextSong = queue[0]
       if (song) fetch(`/api/songs/${song.id}/play`, { method: 'POST' }).catch(console.error)
 
-      setSong(nextSong)
+      promoteQueuedSong(nextSong)
       setQueue(queue.slice(1))
-      setShowRating(false)
-      setHasEnded(false)
-      setShowLyricsPlayer(true)
-      setIsWaitingForQueueStart(false)
     } else {
       setSong(null)
       setShowLyricsPlayer(false)
       setShowRating(false)
       setHasEnded(false)
-      const started = await startBackgroundGeneration()
+      const started = await tryStartBackgroundGeneration()
       if (started) setIsWaitingForQueueStart(true)
     }
   }
@@ -185,7 +185,7 @@ export default function GeneratePage() {
       setStep('done')
       setSong(data.song)
       setShowLyricsPlayer(true)
-      startBackgroundGeneration()
+      tryStartBackgroundGeneration()
     } catch (error: any) {
       console.error('Error generating:', error)
       alert(`Failed to generate your song: ${error.message || 'Please try again.'}`)
