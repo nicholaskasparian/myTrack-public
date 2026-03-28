@@ -44,7 +44,7 @@ export default function GeneratePage() {
             .filter((s) => s.status === 'queued' && s.id !== song?.id)
             .sort((a, b) => (a.queue_position || 0) - (b.queue_position || 0))
           setQueue(queued)
-          if (queued.length < 2 && step === 'done' && !isQueueGenerating) triggerBackgroundGeneration()
+          if (queued.length < 2 && step === 'done' && !isQueueGenerating) startBackgroundGeneration()
         }
       } catch (err) {
         console.error('Failed to fetch queue', err)
@@ -60,6 +60,7 @@ export default function GeneratePage() {
   }, [step, song?.id, isQueueGenerating])
 
   useEffect(() => {
+    // When playback is waiting and a new queued song arrives, promote it immediately to now-playing.
     if (!isWaitingForQueueStart || queue.length === 0 || song) return
     const firstQueuedSong = queue[0]
     setSong(firstQueuedSong)
@@ -70,8 +71,8 @@ export default function GeneratePage() {
     setIsWaitingForQueueStart(false)
   }, [isWaitingForQueueStart, queue, song])
 
-  const triggerBackgroundGeneration = async () => {
-    if (isQueueGenerating) return
+  const startBackgroundGeneration = async (): Promise<boolean> => {
+    if (isQueueGenerating) return false
     setIsQueueGenerating(true)
     try {
       const response = await fetch('/api/generate/queue', {
@@ -83,8 +84,10 @@ export default function GeneratePage() {
         const err = await response.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to generate queue')
       }
+      return true
     } catch (err) {
       console.error(err)
+      return false
     } finally {
       setIsQueueGenerating(false)
     }
@@ -156,8 +159,8 @@ export default function GeneratePage() {
       setShowLyricsPlayer(false)
       setShowRating(false)
       setHasEnded(false)
-      setIsWaitingForQueueStart(true)
-      triggerBackgroundGeneration()
+      const started = await startBackgroundGeneration()
+      if (started) setIsWaitingForQueueStart(true)
     }
   }
 
@@ -182,7 +185,7 @@ export default function GeneratePage() {
       setStep('done')
       setSong(data.song)
       setShowLyricsPlayer(true)
-      triggerBackgroundGeneration()
+      startBackgroundGeneration()
     } catch (error: any) {
       console.error('Error generating:', error)
       alert(`Failed to generate your song: ${error.message || 'Please try again.'}`)

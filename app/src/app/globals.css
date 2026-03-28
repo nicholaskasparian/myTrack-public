@@ -354,15 +354,15 @@ hr.separator {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .landing-shell,
+  .landing-animate,
+  .kpi-card,
+  .panel,
+  .surface,
+  .modal-backdrop,
+  .btn {
     animation: none !important;
     transition: none !important;
-  }
-
-  .surface,
-  .modal-backdrop {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
