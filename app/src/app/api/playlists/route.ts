@@ -7,7 +7,7 @@ import { nanoid } from 'nanoid'
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth()
+    const { userId } = auth()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const supabase = getSupabaseAdmin()
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth()
+    const { userId } = auth()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()

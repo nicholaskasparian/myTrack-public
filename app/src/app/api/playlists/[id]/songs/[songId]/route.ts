@@ -7,7 +7,7 @@ export async function DELETE(
   { params }: { params: { id: string; songId: string } }
 ) {
   try {
-    const { userId } = await auth()
+    const { userId } = auth()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id, songId } = params

@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId } = auth();
     const { id } = params;
 
     const supabase = getSupabaseAdmin();
@@ -40,7 +40,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -97,7 +97,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId } = await auth();
+    const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
