@@ -85,7 +85,7 @@ export default function AudioPlayer({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', padding: '16px 0' }}>
-      <audio ref={audioRef} src={src} />
+      <audio ref={audioRef} src={src} key={src} />
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <button 

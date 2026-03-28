@@ -4,81 +4,76 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import type { Song } from '../lib/types';
 
 function parseLRC(lrcText: string) {
-  const lines = lrcText.split('\n');
+  // 1. Add newlines before AND after any timestamp tag
+  let text = lrcText.replace(/(\[\d{1,2}:\d{2}(?:\.\d+)?(?: - \d{1,2}:\d{2})?\])/g, '\n$1\n');
+  
+  // 2. Add newlines before AND after Lyria timestamp tags [15.0:]
+  text = text.replace(/(\[\d+(?:\.\d+)?:\])/g, '\n$1\n');
+  
+  // 3. Add newlines before AND after structural tags
+  text = text.replace(/(\[[a-zA-Z\s0-9]+\])/g, '\n$1\n');
+  
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
   const parsed: { time: number; text: string }[] = [];
-  
-  // Standard LRC: [00:12.34] or [01:02]
-  const lrcRegex = /\[(\d+):(\d+(?:\.\d+)?)\](.*)/;
-  // Lyria/Timestamp format: [0:00 - 0:10] or [00:00]
-  const timestampRegex = /\[(\d+):(\d+)(?:\s*-\s*\d+:\d+)?\](.*)/;
-  // Lyria text output: [15.0:]
-  const lyriaRegex = /\[(\d+(?:\.\d+)?):\](.*)/;
-  
+  const lrcRegex = /^\[(\d+):(\d+(?:\.\d+)?)\]$/;
+  const timestampRegex = /^\[(\d+):(\d+)(?:\s*-\s*\d+:\d+)?\]$/;
+  const lyriaRegex = /^\[(\d+(?:\.\d+)?):\]$/;
+  const structureRegex = /^\[[a-zA-Z\s0-9]+\]$/;
+
   let hasTags = false;
   let lastTime = 0;
 
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    
     // Skip Lyria structural tags like [[A0]]
-    if (/^\[\[.*\]\]$/.test(trimmed)) continue;
-    
+    if (/^\[\[.*\]\]$/.test(line)) continue;
     // Skip mosic, bpm, duration_secs
-    if (/^(mosic|bpm|duration_secs|good_crop):\s*[\d.]+/.test(trimmed)) continue;
+    if (/^(mosic|bpm|duration_secs|good_crop):\s*[\d.]+/.test(line)) continue;
 
-    let match = lrcRegex.exec(trimmed);
+    let match = lrcRegex.exec(line);
     if (match) {
       hasTags = true;
-      const minutes = parseInt(match[1], 10);
-      const seconds = parseFloat(match[2]);
-      const text = match[3].trim();
-      lastTime = minutes * 60 + seconds;
-      parsed.push({ time: lastTime, text: text || '♪' });
+      lastTime = parseInt(match[1], 10) * 60 + parseFloat(match[2]);
       continue;
     }
 
-    match = timestampRegex.exec(trimmed);
+    match = timestampRegex.exec(line);
     if (match) {
       hasTags = true;
-      const minutes = parseInt(match[1], 10);
-      const seconds = parseInt(match[2], 10);
-      const text = match[3].trim();
-      lastTime = minutes * 60 + seconds;
-      parsed.push({ time: lastTime, text: text || '♪' });
+      lastTime = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
       continue;
     }
     
-    match = lyriaRegex.exec(trimmed);
+    match = lyriaRegex.exec(line);
     if (match) {
       hasTags = true;
-      const seconds = parseFloat(match[1]);
-      const text = match[2].trim();
-      lastTime = seconds;
-      parsed.push({ time: lastTime, text: text || '♪' });
+      lastTime = parseFloat(match[1]);
       continue;
     }
 
-    // If no match but we have tags, this is a continuation of the previous timestamp
+    if (structureRegex.test(line)) {
+      parsed.push({ time: lastTime, text: line });
+      continue;
+    }
+
+    // It's actual lyric text
+    let cleanText = line;
+    if (cleanText.startsWith('[:]')) {
+      cleanText = cleanText.substring(3).trim();
+    }
+    
     if (hasTags) {
-      // Clean up [:] from Lyria format
-      let cleanText = trimmed;
-      if (cleanText.startsWith('[:]')) {
-        cleanText = cleanText.substring(3).trim();
-      }
       parsed.push({ time: lastTime, text: cleanText });
+    } else {
+      // If we haven't seen a tag yet, assume time 0
+      parsed.push({ time: 0, text: cleanText });
+      hasTags = true; // So we don't treat it as a pure raw-text file later
     }
   }
 
-  // Fallback if no tags are present
-  if (!hasTags) {
-    return lines
-      .map(l => l.trim())
-      .filter(line => line.length > 0)
-      .map((line) => ({
-        time: 0,
-        text: line
-      }));
+  if (parsed.length === 0) {
+    // Fallback if no tags at all
+    return lrcText.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => ({ time: 0, text: l }));
   }
 
   // Group lines with same timestamp to avoid overlapping

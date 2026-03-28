@@ -38,7 +38,7 @@ export async function GET(
         song_id,
         position,
         added_at,
-        songs (*)
+        songs:song_id (*)
       `)
       .eq('playlist_id', id)
       .order('position', { ascending: true })
@@ -104,7 +104,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('playlist_songs')
       .insert(newEntry)
-      .select('*, songs(*)')
+      .select('id, playlist_id, song_id, position, added_at, songs:song_id (*)')
       .single()
 
     if (error) throw error

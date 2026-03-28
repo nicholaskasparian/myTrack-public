@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       (playlists || []).map(async (playlist) => {
         const { data: songsData, error: songsError } = await supabase
           .from('playlist_songs')
-          .select('songs(cover_url)')
+          .select('songs:song_id(cover_url)')
           .eq('playlist_id', playlist.id)
           .order('position', { ascending: true })
           .limit(4)
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
-    const { name, is_public = false } = body
+    const { name, is_public = false, song_id } = body
 
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
@@ -79,7 +79,16 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json({ ...data, song_count: 0, cover_urls: [] })
+    if (song_id) {
+       await supabase.from('playlist_songs').insert({
+         id: nanoid(10),
+         playlist_id: data.id,
+         song_id,
+         position: 0
+       });
+    }
+
+    return NextResponse.json({ ...data, song_count: song_id ? 1 : 0, cover_urls: [] })
   } catch (error: any) {
     console.error('Playlists POST Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -105,13 +105,14 @@ export default function GeneratePage() {
       const res = await fetch('/api/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlaylistName })
+        body: JSON.stringify({ name: newPlaylistName, song_id: addingToPlaylist })
       });
       if (res.ok) {
         const newPlaylist = await res.json();
         setPlaylists([...playlists, newPlaylist]);
         setNewPlaylistName('');
-        await selectPlaylist(newPlaylist.id);
+        alert('Playlist created and song added!');
+        setAddingToPlaylist(null);
       }
     } catch (err) {
       console.error('Error creating playlist', err);
@@ -416,6 +417,7 @@ export default function GeneratePage() {
             </div>
 
             <AudioPlayer 
+              key={song.id}
               src={song.audio_url || ''} 
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => {
@@ -441,6 +443,7 @@ export default function GeneratePage() {
 
             {showLyricsPlayer && song && (
               <FullscreenPlayer 
+                key={song.id}
                 song={song} 
                 onClose={() => setShowLyricsPlayer(false)} 
                 onNext={() => {

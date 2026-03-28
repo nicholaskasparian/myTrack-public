@@ -148,14 +148,14 @@ export default function LibraryPage() {
       const res = await fetch('/api/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlaylistName })
+        body: JSON.stringify({ name: newPlaylistName, song_id: addingToPlaylist })
       });
       if (res.ok) {
         const newPlaylist = await res.json();
         setPlaylists([...playlists, newPlaylist]);
         setNewPlaylistName('');
-        // optionally auto-add song
-        await selectPlaylist(newPlaylist.id);
+        alert('Playlist created and song added!');
+        setAddingToPlaylist(null);
       }
     } catch (err) {
       console.error('Error creating playlist', err);

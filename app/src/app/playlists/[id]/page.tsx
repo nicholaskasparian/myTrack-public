@@ -241,13 +241,13 @@ export default function PlaylistDetailPage() {
           </button>
         )}
 
-        {isPlayingAll && songs[currentSongIndex]?.song?.audio_url && (
+        {isPlayingAll && songs[currentSongIndex] && (
           <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
             <div style={{ marginBottom: '1rem', fontWeight: 600 }}>
-              Playing: {songs[currentSongIndex].song?.title || 'Unknown Song'}
+              Playing: {songs[currentSongIndex].song?.title || (songs[currentSongIndex] as any).songs?.title || 'Unknown Song'}
             </div>
             <AudioPlayer
-              src={songs[currentSongIndex].song!.audio_url!}
+              src={songs[currentSongIndex].song?.audio_url || (songs[currentSongIndex] as any).songs?.audio_url || ''}
               onEnded={handleSongEnded}
             />
             <button
@@ -269,7 +269,8 @@ export default function PlaylistDetailPage() {
         ) : (
           songs.map((ps, index) => {
             const isDragged = draggedIdx === index;
-            const s = ps.song;
+            // Handle different Supabase join return formats
+            const s = ps.song || (ps as any).songs;
             
             return (
               <div
