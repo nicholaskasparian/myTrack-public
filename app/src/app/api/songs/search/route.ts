@@ -21,11 +21,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import ai, { MODELS } from '../../../../lib/gemini';
 import { getSupabaseAdmin } from '../../../../lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import type { Song } from '../../../../lib/types';
 
 const CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F]/g;
 const MAX_QUERY_LENGTH = 200;
 const MAX_QUERY_TERMS = 6;
 const SAFE_TERM_PATTERN = /[^a-zA-Z0-9- ]/g;
+const FALLBACK_FETCH_LIMIT = 200;
+type SearchableSong = Pick<Song, 'id' | 'title' | 'genre' | 'mood' | 'vibe' | 'lyrics'>;
+type SearchProjection = SearchableSong & { searchable: string };
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,8 +82,8 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ results: data || [] });
-    } catch (embeddingOrRpcError) {
-      console.warn('Semantic search unavailable (embedding generation or search_songs RPC failed), falling back to text search:', embeddingOrRpcError);
+    } catch (semanticSearchError) {
+      console.warn('Semantic search unavailable (embedding generation or search_songs RPC failed), falling back to text search:', semanticSearchError);
     }
 
     // Step 2 fallback: safe in-memory text search (works without embedding API or RPC setup)
@@ -96,10 +100,10 @@ export async function POST(req: NextRequest) {
 
     const { data: candidateSongs, error: fallbackError } = await supabase
       .from('songs')
-      .select('*')
+      .select('id,title,genre,mood,vibe,lyrics')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(FALLBACK_FETCH_LIMIT);
 
     if (fallbackError) {
       console.error('Fallback text search error:', fallbackError);
@@ -107,14 +111,36 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedTerms = queryTerms.map((term) => term.toLowerCase());
-    const fallbackData = (candidateSongs || [])
-      .filter((song: any) => {
-        const searchable = `${song.title || ''} ${song.genre || ''} ${song.mood || ''} ${song.vibe || ''} ${song.lyrics || ''}`.toLowerCase();
-        return normalizedTerms.every((term) => searchable.includes(term));
-      })
+    const candidateProjections = ((candidateSongs || []) as SearchableSong[]).map((song) => ({
+      ...song,
+      searchable: `${song.title || ''} ${song.genre || ''} ${song.mood || ''} ${song.vibe || ''} ${song.lyrics || ''}`.toLowerCase(),
+    }));
+
+    const fallbackMatches = candidateProjections
+      .filter((song: SearchProjection) => normalizedTerms.every((term) => song.searchable.includes(term)))
       .slice(0, 20);
 
-    return NextResponse.json({ results: fallbackData });
+    if (fallbackMatches.length === 0) {
+      return NextResponse.json({ results: [] });
+    }
+
+    const matchedIds = fallbackMatches.map((song) => song.id);
+    const { data: fallbackData, error: fallbackDetailsError } = await supabase
+      .from('songs')
+      .select('*')
+      .eq('user_id', userId)
+      .in('id', matchedIds);
+
+    if (fallbackDetailsError) {
+      console.error('Fallback details fetch error:', fallbackDetailsError);
+      return NextResponse.json({ error: 'Failed to search songs' }, { status: 500 });
+    }
+
+    const resultById = new Map((fallbackData || []).map((song) => [song.id, song]));
+    const orderedResults = matchedIds
+      .map((id) => resultById.get(id))
+      .filter((song): song is Song => Boolean(song));
+    return NextResponse.json({ results: orderedResults });
   } catch (error) {
     console.error('Error searching songs:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
