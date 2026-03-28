@@ -4,7 +4,7 @@ const META_LINE_REGEX = /^(music|bpm|duration_secs|good_crop):/i;
 
 export function shouldSkipLyricLine(line: string) {
   const cleanLine = line.trim();
-  if (!cleanLine) return true;
+  if (!cleanLine) return false; // DO NOT skip empty lines, we need them for linebreaks
   return SFX_LINE_REGEX.test(cleanLine) || BRACKETED_PRODUCTION_NOTE_REGEX.test(cleanLine) || META_LINE_REGEX.test(cleanLine);
 }
 
@@ -12,6 +12,6 @@ export function sanitizeLyrics(raw: string) {
   return raw
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => !shouldSkipLyricLine(line))
+    .filter((line) => line === '' || !shouldSkipLyricLine(line))
     .join('\n');
 }

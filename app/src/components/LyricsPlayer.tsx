@@ -31,7 +31,7 @@ function parseLRC(lrcText: string) {
     return `${punctuation}\n `;
   });
   
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = text.split('\n').map(l => l.trim());
   
   const parsed: { time: number; text: string }[] = [];
   const lrcRegex = /^\[(\d+):(\d+(?:\.\d+)?)\]$/;
@@ -80,7 +80,7 @@ function parseLRC(lrcText: string) {
       cleanText = cleanText.substring(3).trim();
     }
     // Drop non-lyric SFX/stage-direction lines from Lyria output
-    if (shouldSkipLyricLine(cleanText)) continue;
+    if (cleanText !== '' && shouldSkipLyricLine(cleanText)) continue;
     
     if (hasTags) {
       parsed.push({ time: lastTime, text: cleanText });
@@ -93,13 +93,13 @@ function parseLRC(lrcText: string) {
 
   if (parsed.length === 0) {
     // Fallback if no tags at all
-    return normalizedText
+    const textLines = normalizedText
       .split('\n')
       .map(l => l.trim())
-      .filter(l => l.length > 0)
       .map((line) => (line.startsWith(LRC_INLINE_PREFIX_TAG) ? line.substring(LRC_INLINE_PREFIX_TAG.length).trim() : line))
-      .filter((line) => !shouldSkipLyricLine(line))
-      .map((line) => ({ time: 0, text: line }));
+      .filter((line) => line === '' || !shouldSkipLyricLine(line))
+      .join('\n');
+    return [{ time: 0, text: textLines }];
   }
 
   // Group lines with same timestamp to avoid overlapping
@@ -112,6 +112,12 @@ function parseLRC(lrcText: string) {
       grouped.push(entry);
     }
   }
+
+  // trim the grouped texts
+  grouped.forEach(g => {
+    // replace 3+ newlines with 2 newlines to avoid massive gaps
+    g.text = g.text.replace(/\n{3,}/g, '\n\n').trim();
+  });
 
   return grouped.sort((a, b) => a.time - b.time);
 }
@@ -140,6 +146,15 @@ export default function LyricsPlayer({
       document.body.style.overflow = previousOverflow;
     };
   }, []);
+
+  useEffect(() => {
+    // Explicitly handle song change auto-play
+    if (audioRef.current && song.audio_url) {
+      setIsPlaying(false);
+      audioRef.current.load();
+      audioRef.current.play().catch(e => console.log('Auto-play prevented:', e));
+    }
+  }, [song]);
 
   // Parse lyrics
   const lyricsText = song.lyrics || "No lyrics available.";
