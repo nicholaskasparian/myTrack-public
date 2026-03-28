@@ -81,14 +81,14 @@ export async function POST(request: NextRequest) {
     // Step 4: Compute Sound Profile
     const dims: (keyof AudioFeatures)[] = ['tempo', 'energy', 'valence', 'danceability', 'acousticness', 'instrumentalness', 'speechiness', 'liveness'];
     
-    function calcAvg(tracks: any[], dimension: string) {
+    const calcAvg = (tracks: any[], dimension: string) => {
       const validFeats = tracks
         .map(t => audioFeaturesMap.get(t.id))
         .filter(f => f && typeof f[dimension] === 'number');
       if (validFeats.length === 0) return 0;
       const sum = validFeats.reduce((acc, f) => acc + f[dimension], 0);
       return sum / validFeats.length;
-    }
+    };
 
     const computedFeatures: AudioFeatures = {
       tempo: 0, energy: 0, valence: 0, danceability: 0,
