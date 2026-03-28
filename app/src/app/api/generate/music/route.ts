@@ -71,8 +71,15 @@ export async function POST(req: NextRequest) {
 
     const responseText = promptResponse.text?.trim() || "{}";
     let parsedResponse: any = {};
+    let cleanText = responseText;
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.replace(/^```json\n/, '').replace(/\n```$/, '');
+    } else if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```\n/, '').replace(/\n```$/, '');
+    }
+
     try {
-      parsedResponse = JSON.parse(responseText);
+      parsedResponse = JSON.parse(cleanText);
     } catch (e) {
       console.error('Failed to parse Gemini response', responseText);
       return NextResponse.json({ error: 'Failed to generate prompt or lyrics format' }, { status: 500 });

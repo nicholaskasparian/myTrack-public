@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Song, GenerationStep } from '../../lib/types';
 import AudioPlayer from '../../components/AudioPlayer';
-import LyricsPlayer from '../../components/LyricsPlayer';
+import FullscreenPlayer from '../../components/FullscreenPlayer';
 import RatingSlider from '../../components/RatingSlider';
 
 export default function GeneratePage() {
@@ -96,6 +96,7 @@ export default function GeneratePage() {
       
       setShowRating(false);
       setHasEnded(false);
+      setShowLyricsPlayer(true);
       triggerBackgroundGeneration();
     }
   };
@@ -142,6 +143,7 @@ export default function GeneratePage() {
       
       setStep('done');
       setSong(data.song);
+      setShowLyricsPlayer(true);
       
       // As soon as the first song is loaded, trigger queue generation
       triggerBackgroundGeneration();
@@ -396,10 +398,16 @@ export default function GeneratePage() {
             </div>
 
             {showLyricsPlayer && song && (
-              <LyricsPlayer song={song} onClose={() => setShowLyricsPlayer(false)} onNext={() => {
-                setShowRating(true);
-                setHasEnded(true);
-              }} />
+              <FullscreenPlayer 
+                song={song} 
+                onClose={() => setShowLyricsPlayer(false)} 
+                onNext={() => {
+                  setShowRating(true);
+                  setHasEnded(true);
+                  setShowLyricsPlayer(false);
+                }} 
+                onAddToPlaylist={(songId) => openPlaylistModal(songId)}
+              />
             )}
           </div>
 
