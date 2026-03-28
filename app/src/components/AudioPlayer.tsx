@@ -6,10 +6,12 @@ export default function AudioPlayer({
   src,
   onEnded,
   onTimeUpdate,
+  onPlay,
 }: {
   src: string
   onEnded?: () => void
   onTimeUpdate?: (currentTime: number) => void
+  onPlay?: () => void
 }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -38,7 +40,10 @@ export default function AudioPlayer({
       onEnded?.()
     }
 
-    const handlePlay = () => setIsPlaying(true)
+    const handlePlay = () => {
+      setIsPlaying(true)
+      onPlay?.()
+    }
     const handlePause = () => setIsPlaying(false)
 
     audio.addEventListener('timeupdate', handleTimeUpdate)
@@ -54,7 +59,7 @@ export default function AudioPlayer({
       audio.removeEventListener('pause', handlePause)
       audio.removeEventListener('ended', handleEnded)
     }
-  }, [onEnded, onTimeUpdate])
+  }, [onEnded, onTimeUpdate, onPlay])
 
   const togglePlay = () => {
     if (!audioRef.current) return
