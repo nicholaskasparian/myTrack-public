@@ -1,3 +1,5 @@
+`mermaid
+
 flowchart LR
     U[User] --> A[Sign in with Clerk]
     A --> B[Connect Spotify]
@@ -25,3 +27,4 @@ flowchart LR
     I --> M[Embedding Generation: Gemini Embedding]
     M --> N[Vector Search with pgvector]
     N --> O[Semantic Library Search]
+`
