@@ -53,21 +53,38 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     console.log(`[QueueMusic] Starting queue generation for user ${userId}`);
-    // 1. Fetch user's Sound Profile
-    const { data: profileData, error: profileError } = await supabase
-      .from('sound_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    
+    // 1. Fetch user's Sound Profile and current queue count
+    const [{ data: profileData, error: profileError }, { count: queueCount, error: countError }] = await Promise.all([
+      supabase
+        .from('sound_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('songs')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'queued')
+    ]);
 
     if (profileError || !profileData) {
       console.error('Error fetching sound profile:', profileError);
       return NextResponse.json({ error: 'Sound profile not found' }, { status: 404 });
     }
+    
+    const targetQueueSize = 2;
+    const neededCount = targetQueueSize - (queueCount || 0);
+
+    if (neededCount <= 0) {
+        console.log(`[QueueMusic] Queue already full (${queueCount} songs). Skipping generation.`);
+        return NextResponse.json({ queued: 0 });
+    }
+
     const sound_profile = profileData as SoundProfile;
 
-    // 2. Generate 9 concepts via Flash
-    console.log('[QueueMusic] Generating concepts...');
+    // 2. Generate concepts via Flash (always 9 for better selection variety)
+    console.log(`[QueueMusic] Generating ${neededCount} track(s)...`);
     let userPromptIdeas = `Sound Profile: ${JSON.stringify(sound_profile)}`;
     if (moodHint) {
         userPromptIdeas += `\n\nGenerate concepts tailored to this specific vibe/mood hint: "${moodHint}". Still keep the user's general sound profile in mind, but heavily lean into the requested vibe.`;
@@ -85,28 +102,28 @@ export async function POST(req: NextRequest) {
     const text = ideasResponse.text || "";
     const allConcepts: Concept[] = JSON.parse(text);
 
-    // Pick 3 best by diversity (different genres)
+    // Pick 'neededCount' best by diversity (different genres)
     const selectedConcepts: Concept[] = [];
     const seenGenres = new Set<string>();
 
     for (const concept of allConcepts) {
-      if (selectedConcepts.length >= 3) break;
+      if (selectedConcepts.length >= neededCount) break;
       const genreKey = concept.genre.toLowerCase();
       if (!seenGenres.has(genreKey)) {
         selectedConcepts.push(concept);
         seenGenres.add(genreKey);
       }
     }
-    // If we didn't get 3 distinct genres, fill up the rest
+    // If we didn't get enough distinct genres, fill up the rest
     for (const concept of allConcepts) {
-      if (selectedConcepts.length >= 3) break;
+      if (selectedConcepts.length >= neededCount) break;
       if (!selectedConcepts.includes(concept)) {
         selectedConcepts.push(concept);
       }
     }
 
-    // 3. Check for resurface=true
-    if (!moodHint) {
+    // 3. Check for resurface=true (only if we need at least one song)
+    if (!moodHint && selectedConcepts.length > 0) {
       const { data: resurfaceData } = await supabase
         .from('songs')
         .select('*')
@@ -124,11 +141,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. For each of 3 concepts: call prompt, music, cover generation in parallel
+    // 4. For each of the needed concepts: call prompt, music, cover generation in parallel
     const generateTrack = async (concept: Concept, position: number) => {
       try {
         const songId = nanoid();
-        console.log(`[QueueMusic] Generating track ${position}: ${concept.title}`);
+        console.log(`[QueueMusic] Generating track: ${concept.title}`);
 
         // a. Prompt & Lyrics Generation
         const promptResponse = await ai.models.generateContent({
@@ -254,7 +271,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 5. Store with status='queued', queue_position
+        // 5. Store with status='queued'
         const newSong: Partial<Song> = {
           id: songId,
           user_id: userId,
@@ -264,10 +281,10 @@ export async function POST(req: NextRequest) {
           bpm: concept.bpm,
           vibe: moodHint ? moodHint : concept.mood,
           lyria_prompt: lyria_prompt,
-          lyrics: lyriaLyrics.trim() || proLyrics.trim(),
+          lyrics: proLyrics.trim() || lyriaLyrics.trim(),
           audio_url: audioUrl,
           cover_url: coverUrl,
-          status: 'ready',
+          status: 'queued',
           queue_position: position,
           concept_json: concept,
           profile_snapshot: sound_profile,
@@ -279,17 +296,15 @@ export async function POST(req: NextRequest) {
         await supabase.from('songs').insert([newSong]);
         console.log(`[QueueMusic] Finished track ${position}`);
       } catch (err) {
-        console.error(`[QueueMusic] Failed to generate track ${position}:`, err);
-        // Continue with other tracks
+        console.error(`[QueueMusic] Failed to generate track:`, err);
       }
     };
 
     // Process tracks. Sequential is safer for rate limits and timeouts on Vercel
     for (let i = 0; i < selectedConcepts.length; i++) {
-        await generateTrack(selectedConcepts[i], i + 1);
+        await generateTrack(selectedConcepts[i], (queueCount || 0) + i + 1);
     }
 
-    // 6. Return queued count
     return NextResponse.json({ queued: selectedConcepts.length });
 
   } catch (error: any) {

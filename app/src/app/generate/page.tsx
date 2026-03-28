@@ -23,14 +23,64 @@ export default function GeneratePage() {
   const [showRating, setShowRating] = useState(false);
   const [rating, setRating] = useState(5);
   const [queue, setQueue] = useState<Song[]>([]);
+  const [isQueueGenerating, setIsQueueGenerating] = useState(false);
   const [showLyricsPlayer, setShowLyricsPlayer] = useState(false);
   const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
-
   const [hasEnded, setHasEnded] = useState(false);
+
+  // Poll for queue updates
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    const fetchQueue = async () => {
+      try {
+        const res = await fetch('/api/songs');
+        if (res.ok) {
+          const songs: Song[] = await res.json();
+          // Filter for queued songs that aren't the current song
+          const queued = songs
+            .filter(s => s.status === 'queued' && s.id !== song?.id)
+            .sort((a, b) => (a.queue_position || 0) - (b.queue_position || 0));
+          
+          setQueue(queued);
+
+          // If queue is low, trigger more generation
+          if (queued.length < 2 && step === 'done' && !isQueueGenerating) {
+            triggerBackgroundGeneration();
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch queue', err);
+      }
+    };
+
+    if (step === 'done') {
+      fetchQueue();
+      interval = setInterval(fetchQueue, 5000); // Poll every 5 seconds
+    }
+
+    return () => clearInterval(interval);
+  }, [step, song?.id, isQueueGenerating]);
+
+  const triggerBackgroundGeneration = async () => {
+    if (isQueueGenerating) return;
+    setIsQueueGenerating(true);
+    try {
+      await fetch('/api/generate/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moodHint })
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsQueueGenerating(false);
+    }
+  };
 
   const openPlaylistModal = async (songId: string) => {
     setAddingToPlaylist(songId);
@@ -61,7 +111,6 @@ export default function GeneratePage() {
         const newPlaylist = await res.json();
         setPlaylists([...playlists, newPlaylist]);
         setNewPlaylistName('');
-        // optionally auto-add song
         await selectPlaylist(newPlaylist.id);
       }
     } catch (err) {
@@ -86,27 +135,20 @@ export default function GeneratePage() {
   };
 
   // Auto-advance logic
-  const handleNextTrack = () => {
+  const handleNextTrack = async () => {
     if (queue.length > 0) {
       const nextSong = queue[0];
-      setQueue(queue.slice(1));
-      
-      // Update current song with next song's details
+      // Mark current song as played in the background
+      if (song) {
+        fetch(`/api/songs/${song.id}/play`, { method: 'POST' }).catch(console.error);
+      }
+
       setSong(nextSong);
-      
+      setQueue(queue.slice(1));
       setShowRating(false);
       setHasEnded(false);
       setShowLyricsPlayer(true);
-      triggerBackgroundGeneration();
     }
-  };
-
-  const triggerBackgroundGeneration = () => {
-    fetch('/api/generate/queue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moodHint })
-    }).catch(console.error);
   };
 
   // Generate functions
@@ -128,7 +170,6 @@ export default function GeneratePage() {
     setCurrentStepText('Loading Feed...');
     
     try {
-      // Make real API call to /api/generate/music
       const response = await fetch('/api/generate/music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,9 +189,6 @@ export default function GeneratePage() {
       
       // As soon as the first song is loaded, trigger queue generation
       triggerBackgroundGeneration();
-      
-      // Initialize an empty queue to be populated by the backend or subsequent calls
-      setQueue([]);
     } catch (error: any) {
       console.error('Error generating:', error);
       alert(`Failed to generate your song: ${error.message || 'Please try again.'}`);
@@ -158,17 +196,20 @@ export default function GeneratePage() {
     }
   };
 
-
-
   const handleTimeUpdate = (currentTime: number) => {
     if (currentTime >= 20 && !showRating) {
       setShowRating(true);
     }
   };
 
-  const submitRating = () => {
-    // API call to submit rating
-    console.log('Submitted rating:', rating);
+  const submitRating = async () => {
+    if (song) {
+      await fetch(`/api/songs/${song.id}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating })
+      }).catch(console.error);
+    }
     setShowRating(false);
     if (hasEnded) {
       handleNextTrack();
@@ -492,14 +533,33 @@ export default function GeneratePage() {
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>UP NEXT</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {queue.length === 0 && isQueueGenerating && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--ink-muted)' }}>Generating next tracks...</div>
+              )}
               {queue.map((qSong, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
-                  <div style={{ width: '48px', height: '48px', background: 'var(--border)' }}></div>
+                <div key={qSong.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
+                  <div style={{ width: '48px', height: '48px', background: 'var(--border)', overflow: 'hidden' }}>
+                    {qSong.cover_url && <img src={qSong.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold' }}>{qSong.title}</div>
                     <div style={{ fontSize: '12px', color: 'var(--ink-muted)' }}>{qSong.genre} • {qSong.bpm} BPM</div>
                   </div>
-                  <button style={{ background: 'none', border: '1px solid var(--border)', padding: '4px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Skip To</button>
+                  <button 
+                    onClick={() => {
+                        if (song) {
+                          fetch(`/api/songs/${song.id}/play`, { method: 'POST' }).catch(console.error);
+                        }
+                        setSong(qSong);
+                        setQueue(prev => prev.filter(s => s.id !== qSong.id));
+                        setShowRating(false);
+                        setHasEnded(false);
+                        setShowLyricsPlayer(true);
+                    }}
+                    style={{ background: 'none', border: '1px solid var(--border)', padding: '4px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Skip To
+                  </button>
                 </div>
               ))}
             </div>
@@ -540,6 +600,22 @@ export default function GeneratePage() {
                 ))}
               </div>
             )}
+            <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+              <input 
+                type="text" 
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="New playlist name..."
+                style={{ width: '100%', padding: '8px', marginBottom: '8px', border: '1px solid var(--border)' }}
+              />
+              <button 
+                onClick={handleCreatePlaylist}
+                disabled={isCreatingPlaylist || !newPlaylistName.trim()}
+                style={{ width: '100%', padding: '8px', background: 'var(--ink)', color: 'var(--bg)', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {isCreatingPlaylist ? 'Creating...' : 'Create & Add'}
+              </button>
+            </div>
             <button 
               onClick={() => setAddingToPlaylist(null)}
               style={{ background: 'transparent', border: 'none', padding: '12px 0 0 0', cursor: 'pointer', width: '100%', textDecoration: 'underline' }}

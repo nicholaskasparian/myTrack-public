@@ -27,7 +27,7 @@ export async function POST(
     }
 
     const currentCount = song.play_count || 0;
-    const newStatus = song.status === 'queued' ? 'played' : song.status;
+    const newStatus = (song.status === 'queued' || song.status === 'ready') ? 'played' : song.status;
 
     const { error: updateError } = await supabase
       .from('songs')
